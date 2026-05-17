@@ -20,14 +20,14 @@
 
     // Google Sheets CSV Export URL
     // Format: https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}
-    SHEET_CSV_URL: 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv&gid=0',
+    SHEET_CSV_URL: 'https://docs.google.com/spreadsheets/d/1R0iYUyB38m0dAhNhQfx5w2TVMAHIQ3Y1fWxvDlA-TWM/export?format=csv&gid=0',
 
     // Google Apps Script Web App URL
-    GAS_URL: 'https://script.google.com/macros/s/YOUR_GAS_DEPLOYMENT_ID/exec',
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbwMPPxKZxSe2jbciI9aqELYV_WiYWsL-OI_Tk0M5F-kFB3Mi510PJPptkl9wmVafreOAw/exec',
 
     // Telegram Bot Configuration (Exposed client-side for MVP per architecture decision)
-    TELEGRAM_BOT_TOKEN: 'YOUR_BOT_TOKEN',
-    TELEGRAM_CHAT_ID: 'YOUR_CHAT_ID',
+    TELEGRAM_BOT_TOKEN: '8935806264:AAHVB9rcx0hsu5jVBuEUVpQqw5MYba7FxR0',
+    TELEGRAM_CHAT_ID: '7929275539',
 
     // UI Configuration
     DEBOUNCE_DELAY: 300,
