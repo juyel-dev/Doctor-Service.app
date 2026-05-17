@@ -1,8 +1,8 @@
 // Config – update these URLs after publishing Sheets & Doc
-const DOCTORS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv';
-const NEWS_DOC_HTML_URL = 'https://docs.google.com/document/d/e/2PACX-.../pub?embedded=true'; // published as web page
-const GAS_SUBMIT_URL = 'https://script.google.com/macros/s/.../exec'; // doPost endpoint
-const GAS_ANALYTICS_URL = 'https://script.google.com/macros/s/.../exec'; // analytics logger
+const DOCTORS_CSV_URL = 'https://docs.google.com/spreadsheets/d/1R0iYUyB38m0dAhNhQfx5w2TVMAHIQ3Y1fWxvDlA-TWM/export?format=csv&gid=0';
+const NEWS_DOC_HTML_URL = 'https://docs.google.com/document/d/1XQHGA0TUpcKCFpUW9L_OlvuH0Sd1sOGbEn-RoQExW30/export?format=html'; // published as web page
+const GAS_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbwMPPxKZxSe2jbciI9aqELYV_WiYWsL-OI_Tk0M5F-kFB3Mi510PJPptkl9wmVafreOAw/exec'; // doPost endpoint
+const GAS_ANALYTICS_URL = 'https://script.google.com/macros/s/AKfycbwMPPxKZxSe2jbciI9aqELYV_WiYWsL-OI_Tk0M5F-kFB3Mi510PJPptkl9wmVafreOAw/exec'; // analytics logger
 
 let doctors = [];
 let filteredDoctors = [];
