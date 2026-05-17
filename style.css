@@ -1,9 +1,21 @@
 /* ============================================================
-   COOCH BEHAR HEALTHCARE DIRECTORY — Mobile-First Stylesheet
-   Calm, accessible, elder-friendly, minimal animation
+   COOCH BEHAR HEALTHCARE DIRECTORY — Mobile‑First Stylesheet
+   No overlapping · Clean z‑index stack · Consistent spacing
    ============================================================ */
 
-/* ---------- Custom Properties (Design Tokens) ---------- */
+/* ---------- IMPORTANT HTML ADJUSTMENT (do this once) ----------
+   Wrap the <aside class="announcement-bar"> and <header class="header">
+   inside a new div:
+   
+   <div class="sticky-header">
+       <aside class="announcement-bar" …>…</aside>
+       <header class="header" …>…</header>
+   </div>
+   
+   This makes the entire top section sticky without overlaps.
+-------------------------------------------------------------- */
+
+/* ---------- Custom Properties ---------- */
 :root {
     --color-primary: #2c7a7b;
     --color-primary-soft: #e6fffa;
@@ -26,6 +38,7 @@
     --shadow-modal: 0 20px 60px rgba(0,0,0,0.2);
     --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --transition: 0.2s ease;
+    --announcement-height: 2.5rem;
 }
 
 /* ---------- Reset & Base ---------- */
@@ -46,8 +59,6 @@ body {
     color: var(--color-text);
     line-height: 1.5;
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
 }
 
 /* ---------- Typography ---------- */
@@ -55,23 +66,17 @@ h1, h2, h3 {
     line-height: 1.25;
     font-weight: 600;
 }
-
 a {
     color: var(--color-primary);
     text-decoration: none;
 }
 
-/* ---------- Utility: Visually Hidden ---------- */
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
+/* ---------- Sticky Header Wrapper ---------- */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1100;        /* above content, below modals */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 /* ---------- Announcement Bar ---------- */
@@ -83,10 +88,7 @@ a {
     justify-content: space-between;
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
-    position: sticky;
-    top: 0;
-    z-index: 1100;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    /* removed sticky here – it's now inside the sticky wrapper */
 }
 .announcement-bar__content {
     flex: 1;
@@ -110,8 +112,9 @@ a {
     color: white;
     display: flex;
     align-items: center;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     gap: 0.75rem;
+    /* no sticky – now inside wrapper */
 }
 .header__hamburger {
     background: none;
@@ -218,8 +221,7 @@ a {
 
 /* ---------- Main Content ---------- */
 .main-content {
-    flex: 1;
-    padding: 0 0.75rem 5rem;
+    padding: 0 0.75rem 7rem;  /* 7rem bottom to clear FABs */
     max-width: 800px;
     width: 100%;
     margin: 0 auto;
@@ -242,7 +244,7 @@ a {
 }
 .search-input {
     width: 100%;
-    padding: 0.85rem 1rem 0.85rem 2.8rem;
+    padding: 0.85rem 2.8rem 0.85rem 2.8rem; /* symmetrical padding for clear btn */
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     font-size: 0.95rem;
@@ -263,6 +265,15 @@ a {
     font-size: 1.3rem;
     color: var(--color-text-light);
     cursor: pointer;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;  /* hidden by default, no layout shift */
+}
+.search-clear--visible {
+    visibility: visible;
 }
 
 /* ---------- Specialty Pills ---------- */
@@ -273,7 +284,7 @@ a {
     display: flex;
     gap: 0.5rem;
     overflow-x: auto;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
@@ -434,6 +445,7 @@ a {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    row-gap: 0.5rem;
     margin-bottom: 0.5rem;
 }
 .card__action-btn {
@@ -499,7 +511,7 @@ a {
     margin-bottom: 0.5rem;
 }
 
-/* ---------- FABs ---------- */
+/* ---------- Floating Action Buttons ---------- */
 .fab-container {
     position: fixed;
     bottom: 1.5rem;
@@ -507,7 +519,7 @@ a {
     display: flex;
     flex-direction: column-reverse;
     gap: 1rem;
-    z-index: 1000;
+    z-index: 1000;   /* below sticky header (1100) and menus (1200) */
 }
 .fab {
     width: 56px;
@@ -536,7 +548,7 @@ a {
 .modal {
     position: fixed;
     inset: 0;
-    z-index: 1300;
+    z-index: 1300;   /* above everything else */
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -545,9 +557,11 @@ a {
     position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.5);
+    /* backdrop catches clicks to close modal */
 }
 .modal__content {
     position: relative;
+    z-index: 1;       /* above backdrop inside the modal stacking context */
     background: white;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     width: 100%;
@@ -575,7 +589,7 @@ a {
     position: sticky;
     top: 0;
     background: white;
-    z-index: 1;
+    z-index: 2;
 }
 .modal__title {
     font-size: 1.2rem;
@@ -697,16 +711,17 @@ a {
     100% { opacity: 1; }
 }
 
-/* ---------- Toast ---------- */
+/* ---------- Toast Notifications ---------- */
 .toast-container {
     position: fixed;
-    bottom: 5rem;
+    bottom: 7rem;       /* above FABs (fab bottom is 1.5rem + fab height 3.5rem) */
     left: 50%;
     transform: translateX(-50%);
     z-index: 1400;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    pointer-events: none;  /* allow clicks to pass through to FABs */
 }
 .toast {
     background: #1a202c;
@@ -716,6 +731,7 @@ a {
     font-size: 0.85rem;
     box-shadow: var(--shadow-modal);
     animation: fadeIn 0.2s;
+    pointer-events: auto;
 }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
