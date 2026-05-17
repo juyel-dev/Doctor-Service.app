@@ -1,717 +1,585 @@
 /**
- * COOCH BEHAR HEALTHCARE DIRECTORY
- * Main Application Controller
- * 
- * Orchestrates UI rendering, event handling, state management,
- * modal control, voice recording, and user interactions.
- * 
- * Architecture: Namespace pattern (window.CBH.app) for broad device compatibility.
+ * app.js — Main application controller for Cooch Behar Healthcare Directory.
+ * Orchestrates UI rendering, search/filter, modals, feedback, and PWA events.
+ * Depends on DataService, Utils, PngShare, and CONFIG.
  */
+const App = (() => {
+    // State
+    let allDoctors = [];
+    let currentFilters = {
+        searchQuery: '',
+        specialty: null,
+        area: ''
+    };
+    let selectedSpecialty = null;
+    let isOnline = navigator.onLine;
 
-(function() {
-  'use strict';
+    // DOM elements (cached after DOM ready)
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
 
-  window.CBH = window.CBH || {};
-
-  CBH.app = {
-    /** DOM element references cached at init */
-    dom: {},
-
-    /** Mutable application state */
-    state: {
-      doctors: [],
-      filteredDoctors: [],
-      currentQuery: '',
-      currentSpecialty: 'all',
-      currentArea: '',
-      isLoading: false,
-      voiceRecorder: null,
-      voiceChunks: [],
-      isRecording: false,
-      recordingTimer: null,
-      recordingSeconds: 0,
-      voiceBlob: null
-    },
+    // Elements references
+    let dom = {};
 
     /**
-     * Initialize the application.
-     * Loads data, binds events, records visit, starts background refresh.
+     * Initialise the application after DOM is ready.
      */
-    init: function() {
-      this._cacheDOM();
-      this._bindEvents();
-      this._loadInitialData();
-      this._recordVisit();
-      this._startVisitorRefresh();
-    },
-
-    /**
-     * Cache frequently-accessed DOM elements to minimize querySelector overhead.
-     */
-    _cacheDOM: function() {
-      var d = this.dom;
-      d.announcementBar = document.getElementById('announcement-bar');
-      d.announcementText = document.getElementById('announcement-text');
-      d.announcementClose = document.getElementById('announcement-close');
-      d.searchInput = document.getElementById('search-input');
-      d.specialtyPills = document.getElementById('specialty-pills');
-      d.areaFilter = document.getElementById('area-filter');
-      d.visitorCount = document.getElementById('visitor-count');
-      d.doctorList = document.getElementById('doctor-list');
-      d.emptyState = document.getElementById('empty-state');
-      d.fabAdd = document.getElementById('fab-add');
-      d.fabFeedback = document.getElementById('fab-feedback');
-      d.modalAdd = document.getElementById('modal-add');
-      d.modalFeedback = document.getElementById('modal-feedback');
-      d.modalDetails = document.getElementById('modal-details');
-      d.menuToggle = document.getElementById('menu-toggle');
-      d.mainNav = document.getElementById('main-nav');
-      d.toast = document.getElementById('toast');
-      d.formAddDoctor = document.getElementById('form-add-doctor');
-      d.formFeedback = document.getElementById('form-feedback');
-      d.voiceBtn = document.getElementById('voice-record-btn');
-      d.voiceTimer = document.getElementById('voice-timer');
-    },
-
-    /**
-     * Bind all event listeners: search, filters, FABs, modals, forms, voice.
-     */
-    _bindEvents: function() {
-      var self = this;
-      var d = this.dom;
-
-      // Search input with debounce for performance
-      d.searchInput.addEventListener('input', CBH.utils.debounce(function(e) {
-        self.state.currentQuery = e.target.value;
-        self._applyFilters();
-      }, CBH.config.DEBOUNCE_DELAY));
-
-      // Specialty pills via event delegation
-      d.specialtyPills.addEventListener('click', function(e) {
-        var pill = e.target.closest('.pill');
-        if (!pill) return;
-
-        var specialty = pill.dataset.specialty;
-        self.state.currentSpecialty = specialty;
-
-        var pills = d.specialtyPills.querySelectorAll('.pill');
-        for (var i = 0; i < pills.length; i++) {
-          var isActive = pills[i].dataset.specialty === specialty;
-          pills[i].classList.toggle('active', isActive);
-          pills[i].setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        }
-
-        self._applyFilters();
-      });
-
-      // Area dropdown filter
-      d.areaFilter.addEventListener('change', function(e) {
-        self.state.currentArea = e.target.value;
-        self._applyFilters();
-      });
-
-      // Floating action buttons
-      d.fabAdd.addEventListener('click', function() {
-        self._openModal('modalAdd');
-      });
-
-      d.fabFeedback.addEventListener('click', function() {
-        self._openModal('modalFeedback');
-      });
-
-      // Modal close via overlay or close button (event delegation)
-      document.addEventListener('click', function(e) {
-        var closeTrigger = e.target.closest('.modal-close, .modal-overlay');
-        if (closeTrigger) {
-          var modal = e.target.closest('.modal');
-          if (modal) self._closeModalByElement(modal);
-        }
-      });
-
-      // Escape key closes any open modal
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-          var openModal = document.querySelector('.modal:not(.hidden)');
-          if (openModal) self._closeModalByElement(openModal);
-        }
-      });
-
-      // Add doctor form
-      d.formAddDoctor.addEventListener('submit', function(e) {
-        e.preventDefault();
-        self._handleAddDoctor(e.target);
-      });
-
-      // Feedback form
-      d.formFeedback.addEventListener('submit', function(e) {
-        e.preventDefault();
-        self._handleFeedback(e.target);
-      });
-
-      // Voice recording toggle
-      if (d.voiceBtn) {
-        d.voiceBtn.addEventListener('click', function() {
-          self._toggleVoiceRecording();
-        });
-      }
-
-      // File input label update
-      var fileInput = d.formFeedback ? d.formFeedback.querySelector('input[type="file"]') : null;
-      if (fileInput) {
-        fileInput.addEventListener('change', function(e) {
-          var label = e.target.parentElement.querySelector('.file-input-label');
-          if (e.target.files && e.target.files[0]) {
-            label.textContent = '\u2713 ' + e.target.files[0].name;
-          } else {
-            label.textContent = '\ud83d\udcf7 Tap to upload image';
-          }
-        });
-      }
-
-      // Announcement dismiss
-      if (d.announcementClose) {
-        d.announcementClose.addEventListener('click', function() {
-          d.announcementBar.classList.add('hidden');
-          localStorage.setItem('cbh_announcement_dismissed', 'true');
-        });
-      }
-
-      // Hamburger menu toggle
-      if (d.menuToggle) {
-        d.menuToggle.addEventListener('click', function(e) {
-          e.stopPropagation();
-          var isOpen = !d.mainNav.classList.contains('hidden');
-          d.mainNav.classList.toggle('hidden', isOpen);
-          d.menuToggle.setAttribute('aria-expanded', !isOpen);
-          d.mainNav.setAttribute('aria-hidden', isOpen);
-        });
-      }
-
-      // Close menu when clicking outside
-      document.addEventListener('click', function(e) {
-        if (!e.target.closest('#menu-toggle') && !e.target.closest('#main-nav')) {
-          d.mainNav.classList.add('hidden');
-          d.menuToggle.setAttribute('aria-expanded', 'false');
-          d.mainNav.setAttribute('aria-hidden', 'true');
-        }
-      });
-    },
-
-    /**
-     * Load initial dataset: doctors, notice, visitor stats.
-     */
-    _loadInitialData: function() {
-      var self = this;
-      self._setLoading(true);
-
-      CBH.data.getDoctors()
-        .then(function(doctors) {
-          self.state.doctors = doctors;
-          self.state.filteredDoctors = doctors;
-
-          self._renderSpecialtyPills(doctors);
-          self._renderAreaOptions(doctors);
-          self._renderDoctors(doctors);
-
-          return CBH.data.fetchNotice();
-        })
-        .then(function(notice) {
-          if (notice) self._showAnnouncement(notice);
-          self._setLoading(false);
-        })
-        .catch(function(err) {
-          console.error('Initial data load failed:', err);
-          self._showToast('Failed to load directory. Please refresh.', 'error');
-          self._setLoading(false);
-        });
-    },
-
-    /**
-     * Record page visit for analytics.
-     */
-    _recordVisit: function() {
-      CBH.data.recordPageView();
-    },
-
-    /**
-     * Start periodic visitor count refresh (every 30s per config).
-     */
-    _startVisitorRefresh: function() {
-      var self = this;
-      self._updateVisitorCount();
-      setInterval(function() {
-        self._updateVisitorCount();
-      }, CBH.config.VISITOR_REFRESH_INTERVAL);
-    },
-
-    /**
-     * Fetch and display latest visitor count.
-     */
-    _updateVisitorCount: function() {
-      CBH.data.fetchVisitorStats()
-        .then(function(count) {
-          var el = document.getElementById('visitor-count');
-          if (el) el.textContent = count.toLocaleString('en-IN');
-        });
-    },
-
-    /**
-     * Show announcement bar if notice exists and not previously dismissed.
-     */
-    _showAnnouncement: function(text) {
-      var d = this.dom;
-      var lastNotice = localStorage.getItem('cbh_last_notice');
-      var dismissed = localStorage.getItem('cbh_announcement_dismissed');
-
-      // Reset dismissal if notice content changed
-      if (lastNotice !== text) {
-        localStorage.removeItem('cbh_announcement_dismissed');
-        localStorage.setItem('cbh_last_notice', text);
-        dismissed = null;
-      }
-
-      if (!dismissed && text && d.announcementBar && d.announcementText) {
-        // Auto-link URLs
-        var linkedText = text.replace(
-          /(https?:\/\/[^\s]+)/g,
-          '<a href="$1" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;color:inherit;font-weight:600;">$1</a>'
-        );
-        d.announcementText.innerHTML = linkedText;
-        d.announcementBar.classList.remove('hidden');
-      }
-    },
-
-    /**
-     * Render specialty filter pills horizontally.
-     */
-    _renderSpecialtyPills: function(doctors) {
-      var specialties = CBH.data.getSpecialties(doctors);
-      var container = this.dom.specialtyPills;
-
-      var html = '<button class="pill active" data-specialty="all" aria-pressed="true">\u09b8\u09ac (All)</button>';
-
-      for (var i = 0; i < specialties.length; i++) {
-        var spec = CBH.utils.sanitizeHTML(specialties[i]);
-        html += '<button class="pill" data-specialty="' + spec + '" aria-pressed="false">' + spec + '</button>';
-      }
-
-      container.innerHTML = html;
-    },
-
-    /**
-     * Render area dropdown options.
-     */
-    _renderAreaOptions: function(doctors) {
-      var areas = CBH.data.getAreas(doctors);
-      var select = this.dom.areaFilter;
-
-      var html = '<option value="">\u09b8\u09ac \u098f\u09b0\u09bf\u09df\u09be (All Areas)</option>';
-
-      for (var i = 0; i < areas.length; i++) {
-        var area = CBH.utils.sanitizeHTML(areas[i]);
-        html += '<option value="' + area + '">' + area + '</option>';
-      }
-
-      select.innerHTML = html;
-    },
-
-    /**
-     * Apply active filters and re-render the doctor list.
-     */
-    _applyFilters: function() {
-      var filtered = CBH.data.filterDoctors(
-        this.state.doctors,
-        this.state.currentQuery,
-        this.state.currentSpecialty,
-        this.state.currentArea
-      );
-      this.state.filteredDoctors = filtered;
-      this._renderDoctors(filtered);
-    },
-
-    /**
-     * Render doctor cards using DocumentFragment for batch DOM insertion.
-     */
-    _renderDoctors: function(doctors) {
-      var container = this.dom.doctorList;
-      var emptyState = this.dom.emptyState;
-
-      if (doctors.length === 0) {
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        return;
-      }
-
-      emptyState.classList.add('hidden');
-      var fragment = document.createDocumentFragment();
-
-      for (var i = 0; i < doctors.length; i++) {
-        fragment.appendChild(this._createDoctorCard(doctors[i]));
-      }
-
-      container.innerHTML = '';
-      container.appendChild(fragment);
-    },
-
-    /**
-     * Create a single doctor card DOM element.
-     */
-    _createDoctorCard: function(doctor) {
-      var utils = CBH.utils;
-      var isVerified = (doctor.verification || '').toLowerCase().indexOf('verified') !== -1;
-      var badgeClass = isVerified ? 'badge-verified' : 'badge-listed';
-      var badgeText = isVerified ? '\u2713 Verified' : '\u26a0 Listed by community';
-
-      var sessions = [doctor.session_1, doctor.session_2, doctor.session_3]
-        .filter(Boolean)
-        .map(function(s) {
-          return '<div class="session-time">\ud83d\udd50 ' + utils.sanitizeHTML(s) + '</div>';
-        })
-        .join('');
-
-      if (!sessions) {
-        sessions = '<div class="session-time text-muted">\ud83d\udd50 Contact for timing</div>';
-      }
-
-      var card = document.createElement('article');
-      card.className = 'doctor-card';
-      card.setAttribute('data-id', doctor.doctor_id);
-
-      var html =
-        '<div class="card-header">' +
-          '<h3 class="doctor-name">' + utils.sanitizeHTML(doctor.name) + '</h3>' +
-          '<span class="specialty-tag">' + utils.sanitizeHTML(doctor.specialty) + '</span>' +
-        '</div>' +
-        '<div class="card-body">' +
-          (doctor.degree ? '<p class="doctor-degree">' + utils.sanitizeHTML(doctor.degree) + '</p>' : '') +
-          '<div class="chamber-info">' +
-            (doctor.chamber_name ? '<p class="chamber-name">\ud83c\udfe5 ' + utils.sanitizeHTML(doctor.chamber_name) + '</p>' : '') +
-            (doctor.chamber_address ? '<p class="chamber-address">\ud83d\udccd ' + utils.sanitizeHTML(doctor.chamber_address) + '</p>' : '') +
-            ((doctor.area || doctor.city) ? '<p class="chamber-area">\ud83c\udf10 ' + utils.sanitizeHTML([doctor.area, doctor.city].filter(Boolean).join(', ')) + '</p>' : '') +
-          '</div>' +
-          '<div class="session-info">' + sessions +
-            (doctor.time_description ? '<p class="time-note">\ud83d\udcdd ' + utils.sanitizeHTML(doctor.time_description) + '</p>' : '') +
-          '</div>' +
-          (doctor.fees ? '<p class="fees">\ud83d\udcb0 ' + utils.sanitizeHTML(doctor.fees) + '</p>' : '') +
-          '<span class="verification-badge ' + badgeClass + '">' + badgeText + '</span>' +
-        '</div>' +
-        '<div class="card-actions">' +
-          (doctor.phone ? '<a href="tel:' + utils.sanitizeHTML(doctor.phone) + '" class="btn-action btn-call" aria-label="Call doctor">\ud83d\udcde Call</a>' : '') +
-          (doctor.whatsapp ? '<a href="https://wa.me/' + utils.sanitizeHTML(doctor.whatsapp.replace(/\D/g, '')) + '" target="_blank" rel="noopener" class="btn-action btn-whatsapp" aria-label="WhatsApp doctor">\ud83d\udcac WhatsApp</a>' : '') +
-          '<button class="btn-action btn-share" data-action="share" aria-label="Share doctor card">\ud83d\udce4 Share</button>' +
-          '<button class="btn-action btn-details" data-action="details" aria-label="View details">\ud83d\udd0d Details</button>' +
-        '</div>' +
-        '<div class="card-footer">' +
-          '<span class="updated-at">\ud83d\udd52 Updated: ' + utils.formatDate(doctor.submitted_at) + '</span>' +
-        '</div>';
-
-      card.innerHTML = html;
-
-      var self = this;
-      var shareBtn = card.querySelector('[data-action="share"]');
-      var detailsBtn = card.querySelector('[data-action="details"]');
-
-      if (shareBtn) {
-        shareBtn.addEventListener('click', function() {
-          CBH.share.generateDoctorCard(doctor);
-        });
-      }
-
-      if (detailsBtn) {
-        detailsBtn.addEventListener('click', function() {
-          self._showDoctorDetails(doctor);
-        });
-      }
-
-      return card;
-    },
-
-    /**
-     * Show full doctor details in a modal.
-     */
-    _showDoctorDetails: function(doctor) {
-      var modal = this.dom.modalDetails;
-      var content = modal.querySelector('.modal-body');
-      var utils = CBH.utils;
-
-      var isVerified = (doctor.verification || '').toLowerCase().indexOf('verified') !== -1;
-      var badgeClass = isVerified ? 'badge-verified' : 'badge-listed';
-      var badgeText = isVerified ? '\u2713 Verified' : '\u26a0 Listed by community';
-
-      var html =
-        '<div class="details-card">' +
-          '<h2>' + utils.sanitizeHTML(doctor.name) + '</h2>' +
-          '<p class="detail-specialty">' + utils.sanitizeHTML(doctor.specialty) + '</p>' +
-          (doctor.degree ? '<p class="detail-degree">' + utils.sanitizeHTML(doctor.degree) + '</p>' : '') +
-          '<hr>' +
-          (doctor.chamber_name ? '<p><strong>Chamber:</strong> ' + utils.sanitizeHTML(doctor.chamber_name) + '</p>' : '') +
-          (doctor.chamber_address ? '<p><strong>Address:</strong> ' + utils.sanitizeHTML(doctor.chamber_address) + '</p>' : '') +
-          (doctor.area ? '<p><strong>Area:</strong> ' + utils.sanitizeHTML(doctor.area) + '</p>' : '') +
-          (doctor.city ? '<p><strong>City:</strong> ' + utils.sanitizeHTML(doctor.city) + '</p>' : '') +
-          '<hr>' +
-          '<p><strong>Sessions:</strong></p>' +
-          '<ul>' +
-            (doctor.session_1 ? '<li>' + utils.sanitizeHTML(doctor.session_1) + '</li>' : '') +
-            (doctor.session_2 ? '<li>' + utils.sanitizeHTML(doctor.session_2) + '</li>' : '') +
-            (doctor.session_3 ? '<li>' + utils.sanitizeHTML(doctor.session_3) + '</li>' : '') +
-          '</ul>' +
-          (doctor.time_description ? '<p><strong>Note:</strong> ' + utils.sanitizeHTML(doctor.time_description) + '</p>' : '') +
-          (doctor.fees ? '<p><strong>Fees:</strong> ' + utils.sanitizeHTML(doctor.fees) + '</p>' : '') +
-          '<hr>' +
-          (doctor.phone ? '<p><strong>Phone:</strong> <a href="tel:' + utils.sanitizeHTML(doctor.phone) + '">' + utils.sanitizeHTML(doctor.phone) + '</a></p>' : '') +
-          (doctor.whatsapp ? '<p><strong>WhatsApp:</strong> <a href="https://wa.me/' + utils.sanitizeHTML(doctor.whatsapp.replace(/\D/g, '')) + '" target="_blank" rel="noopener">' + utils.sanitizeHTML(doctor.whatsapp) + '</a></p>' : '') +
-          '<span class="verification-badge ' + badgeClass + '">' + badgeText + '</span>' +
-          '<p class="detail-meta">ID: ' + utils.sanitizeHTML(doctor.doctor_id) + ' \u2022 Submitted: ' + utils.formatDate(doctor.submitted_at) + '</p>' +
-        '</div>';
-
-      content.innerHTML = html;
-      this._openModal('modalDetails');
-    },
-
-    /**
-     * Handle add-doctor form submission with validation.
-     */
-    _handleAddDoctor: function(form) {
-      var self = this;
-      var formData = new FormData(form);
-      var data = {};
-
-      formData.forEach(function(value, key) {
-        data[key] = value.trim();
-      });
-
-      var required = ['name', 'specialty', 'chamber_name', 'area', 'phone', 'submitter_name'];
-      for (var i = 0; i < required.length; i++) {
-        if (!data[required[i]]) {
-          self._showToast('Please fill in all required fields', 'error');
-          return;
-        }
-      }
-
-      var phoneRegex = /^[\d\s\-\+\(\)]{7,}$/;
-      if (!phoneRegex.test(data.phone)) {
-        self._showToast('Please enter a valid phone number', 'error');
-        return;
-      }
-
-      self._setLoading(true);
-
-      CBH.data.submitDoctor(data)
-        .then(function() {
-          self._showToast('Doctor submitted! It will appear after review.', 'success');
-          form.reset();
-          self._closeModalByElement(self.dom.modalAdd);
-          setTimeout(function() {
-            self._loadInitialData();
-          }, 2000);
-        })
-        .catch(function(err) {
-          console.error('Submit failed:', err);
-          self._showToast('Submission failed. Please try again.', 'error');
-        })
-        .finally(function() {
-          self._setLoading(false);
-        });
-    },
-
-    /**
-     * Handle feedback form submission to Telegram.
-     */
-    _handleFeedback: function(form) {
-      var self = this;
-      var text = form.querySelector('[name="feedback_text"]').value.trim();
-      var imageInput = form.querySelector('[name="feedback_image"]');
-      var imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
-
-      if (!text && !imageFile && !self.state.voiceBlob) {
-        self._showToast('Please provide feedback text, image, or voice', 'error');
-        return;
-      }
-
-      self._setLoading(true);
-
-      CBH.data.sendFeedback(text, imageFile, self.state.voiceBlob)
-        .then(function() {
-          self._showToast('Feedback sent! Thank you.', 'success');
-          form.reset();
-
-          // Reset voice state
-          self.state.voiceBlob = null;
-          self.state.voiceChunks = [];
-          self._updateVoiceUI();
-
-          // Reset file label
-          var label = form.querySelector('.file-input-label');
-          if (label) label.textContent = '\ud83d\udcf7 Tap to upload image';
-
-          self._closeModalByElement(self.dom.modalFeedback);
-        })
-        .catch(function(err) {
-          console.error('Feedback failed:', err);
-          self._showToast('Failed to send feedback. Please try again.', 'error');
-        })
-        .finally(function() {
-          self._setLoading(false);
-        });
-    },
-
-    /**
-     * Toggle voice recording on/off.
-     */
-    _toggleVoiceRecording: function() {
-      if (this.state.isRecording) {
-        this._stopRecording();
-      } else {
-        this._startRecording();
-      }
-    },
-
-    /**
-     * Start microphone recording via MediaRecorder API.
-     */
-    _startRecording: function() {
-      var self = this;
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        self._showToast('Voice recording not supported on this device', 'error');
-        return;
-      }
-
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function(stream) {
-          var mediaRecorder = new MediaRecorder(stream);
-          self.state.voiceRecorder = mediaRecorder;
-          self.state.voiceChunks = [];
-          self.state.isRecording = true;
-          self.state.recordingSeconds = 0;
-
-          mediaRecorder.ondataavailable = function(e) {
-            if (e.data.size > 0) {
-              self.state.voiceChunks.push(e.data);
-            }
-          };
-
-          mediaRecorder.onstop = function() {
-            var blob = new Blob(self.state.voiceChunks, { type: 'audio/ogg; codecs=opus' });
-            self.state.voiceBlob = blob;
-            self._updateVoiceUI();
-            stream.getTracks().forEach(function(track) { track.stop(); });
-          };
-
-          mediaRecorder.start();
-          self._updateVoiceUI();
-
-          self.state.recordingTimer = setInterval(function() {
-            self.state.recordingSeconds++;
-            self._updateVoiceUI();
-            if (self.state.recordingSeconds >= CBH.config.MAX_VOICE_RECORDING_SECONDS) {
-              self._stopRecording();
-            }
-          }, 1000);
-        })
-        .catch(function(err) {
-          console.error('Microphone access denied:', err);
-          self._showToast('Microphone access required for voice recording', 'error');
-        });
-    },
-
-    /**
-     * Stop active voice recording.
-     */
-    _stopRecording: function() {
-      if (this.state.recordingTimer) {
-        clearInterval(this.state.recordingTimer);
-        this.state.recordingTimer = null;
-      }
-
-      if (this.state.voiceRecorder && this.state.voiceRecorder.state !== 'inactive') {
-        this.state.voiceRecorder.stop();
-      }
-
-      this.state.isRecording = false;
-      this._updateVoiceUI();
-    },
-
-    /**
-     * Update voice recording button UI state.
-     */
-    _updateVoiceUI: function() {
-      var btn = this.dom.voiceBtn;
-      var timer = this.dom.voiceTimer;
-      if (!btn) return;
-
-      if (this.state.isRecording) {
-        btn.textContent = '\u23f9 Stop (' + this.state.recordingSeconds + 's)';
-        btn.classList.add('recording');
-        if (timer) {
-          timer.textContent = 'Recording... ' + this.state.recordingSeconds + 's / ' + CBH.config.MAX_VOICE_RECORDING_SECONDS + 's';
-          timer.classList.remove('hidden');
-        }
-      } else if (this.state.voiceBlob) {
-        btn.textContent = '\ud83c\udfa4 Record Again';
-        btn.classList.remove('recording');
-        if (timer) {
-          timer.textContent = '\u2713 Voice recorded (' + Math.round(this.state.voiceBlob.size / 1024) + ' KB)';
-          timer.classList.remove('hidden');
-        }
-      } else {
-        btn.textContent = '\ud83c\udfa4 Record Voice (max ' + CBH.config.MAX_VOICE_RECORDING_SECONDS + 's)';
-        btn.classList.remove('recording');
-        if (timer) timer.classList.add('hidden');
-      }
-    },
-
-    /**
-     * Open a modal by its key in the dom cache.
-     */
-    _openModal: function(modalKey) {
-      var modal = this.dom[modalKey];
-      if (modal) {
-        modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-
-        var focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-        if (focusable.length) focusable[0].focus();
-      }
-    },
-
-    /**
-     * Close a modal by its DOM element.
-     */
-    _closeModalByElement: function(modal) {
-      modal.classList.add('hidden');
-      document.body.style.overflow = '';
-    },
-
-    /**
-     * Show a temporary toast notification.
-     */
-    _showToast: function(message, type) {
-      var toast = this.dom.toast;
-      toast.textContent = message;
-      toast.className = 'toast toast-' + (type || 'info');
-      toast.classList.remove('hidden');
-
-      setTimeout(function() {
-        toast.classList.add('hidden');
-      }, 4000);
-    },
-
-    /**
-     * Toggle global loading state.
-     */
-    _setLoading: function(isLoading) {
-      this.state.isLoading = isLoading;
-      document.body.classList.toggle('is-loading', isLoading);
+    async function init() {
+        cacheDom();
+        setupEventListeners();
+        setupOnlineStatus();
+        await loadInitialData();
+        startVisitorRefresh();
+        checkNotice();
     }
-  };
 
-  // Auto-initialize on DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      CBH.app.init();
-    });
-  } else {
-    CBH.app.init();
-  }
+    function cacheDom() {
+        dom.announcementBar = $('#announcementBar');
+        dom.announcementText = $('#announcementText');
+        dom.announcementDismiss = $('#announcementDismiss');
+        dom.hamburgerBtn = $('#hamburgerBtn');
+        dom.slideMenu = $('#slideMenu');
+        dom.slideMenuClose = $('#slideMenuClose');
+        dom.slideMenuBackdrop = $('#slideMenuBackdrop');
+        dom.searchInput = $('#searchInput');
+        dom.searchClear = $('#searchClear');
+        dom.specialtyPills = $('#specialtyPills');
+        dom.areaFilter = $('#areaFilter');
+        dom.visitorCount = $('#visitorCount');
+        dom.resultsInfo = $('#resultsInfo');
+        dom.doctorCards = $('#doctorCards');
+        dom.loadingSkeleton = $('#loadingSkeleton');
+        dom.emptyState = $('#emptyState');
+        dom.errorState = $('#errorState');
+        dom.retryBtn = $('#retryBtn');
+        dom.fabAddDoctor = $('#fabAddDoctor');
+        dom.fabFeedback = $('#fabFeedback');
+        dom.addDoctorModal = $('#addDoctorModal');
+        dom.addDoctorForm = $('#addDoctorForm');
+        dom.addDoctorClose = $('#addDoctorClose');
+        dom.submitDoctorBtn = $('#submitDoctorBtn');
+        dom.addDoctorSuccess = $('#addDoctorSuccess');
+        dom.addDoctorDone = $('#addDoctorDone');
+        dom.feedbackModal = $('#feedbackModal');
+        dom.feedbackClose = $('#feedbackClose');
+        dom.feedbackText = $('#feedbackText');
+        dom.feedbackImage = $('#feedbackImage');
+        dom.feedbackVoiceBtn = $('#feedbackVoiceBtn');
+        dom.voiceStatus = $('#voiceStatus');
+        dom.voiceTimer = $('#voiceTimer');
+        dom.voiceStopBtn = $('#voiceStopBtn');
+        dom.feedbackSubmit = $('#feedbackSubmit');
+        dom.feedbackSuccess = $('#feedbackSuccess');
+        dom.noticeModal = $('#noticeModal');
+        dom.noticeClose = $('#noticeClose');
+        dom.noticeModalBody = $('#noticeModalBody');
+        dom.detailModal = $('#detailModal');
+        dom.detailClose = $('#detailClose');
+        dom.detailModalBody = $('#detailModalBody');
+        dom.detailModalTitle = $('#detailModalTitle');
+        dom.toastContainer = $('#toastContainer');
+        dom.shareRenderTarget = $('#shareRenderTarget');
+        dom.mainContent = $('#mainContent');
+    }
+
+    function setupEventListeners() {
+        // Hamburger menu
+        dom.hamburgerBtn.addEventListener('click', toggleSlideMenu);
+        dom.slideMenuClose.addEventListener('click', closeSlideMenu);
+        dom.slideMenuBackdrop.addEventListener('click', closeSlideMenu);
+
+        // Search
+        dom.searchInput.addEventListener('input', Utils.debounce(handleSearch, CONFIG.SEARCH_DEBOUNCE_MS));
+        dom.searchClear.addEventListener('click', clearSearch);
+
+        // Area filter
+        dom.areaFilter.addEventListener('change', handleAreaFilter);
+
+        // Modals
+        dom.fabAddDoctor.addEventListener('click', openAddDoctorModal);
+        dom.addDoctorClose.addEventListener('click', closeAddDoctorModal);
+        dom.addDoctorDone.addEventListener('click', closeAddDoctorModal);
+        dom.addDoctorForm.addEventListener('submit', handleDoctorSubmit);
+
+        dom.fabFeedback.addEventListener('click', openFeedbackModal);
+        dom.feedbackClose.addEventListener('click', closeFeedbackModal);
+        dom.feedbackSubmit.addEventListener('click', handleFeedbackSubmit);
+        dom.feedbackVoiceBtn.addEventListener('click', toggleVoiceRecording);
+        dom.voiceStopBtn.addEventListener('click', stopVoiceRecording);
+
+        // Notice modal close
+        dom.noticeClose.addEventListener('click', () => dom.noticeModal.hidden = true);
+
+        // Detail modal close
+        dom.detailClose.addEventListener('click', () => dom.detailModal.hidden = true);
+
+        // Retry button
+        dom.retryBtn.addEventListener('click', loadInitialData);
+
+        // Announcement dismiss
+        dom.announcementDismiss.addEventListener('click', dismissAnnouncement);
+
+        // Delegate card actions (call, whatsapp, share, details)
+        dom.doctorCards.addEventListener('click', handleCardAction);
+
+        // Close modals on backdrop click (generic)
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal__backdrop')) {
+                e.target.closest('.modal').hidden = true;
+            }
+        });
+    }
+
+    async function loadInitialData() {
+        showLoading(true);
+        hideError();
+        try {
+            allDoctors = await DataService.fetchDoctors(true);
+            renderFilters();
+            applyFiltersAndRender();
+            // Record pageview (non-blocking)
+            DataService.recordPageview();
+        } catch (err) {
+            showError();
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function renderFilters() {
+        renderSpecialtyPills();
+        renderAreaOptions();
+    }
+
+    function renderSpecialtyPills() {
+        const specialties = [...new Set(allDoctors.map(d => d.specialty).filter(Boolean))].sort();
+        dom.specialtyPills.innerHTML = '';
+        // "All" pill
+        const allPill = createPill('All', null, selectedSpecialty === null);
+        dom.specialtyPills.appendChild(allPill);
+        specialties.forEach(spec => {
+            const pill = createPill(spec, spec, selectedSpecialty === spec);
+            dom.specialtyPills.appendChild(pill);
+        });
+    }
+
+    function createPill(label, value, isActive) {
+        const pill = document.createElement('span');
+        pill.className = `specialty-pill${isActive ? ' specialty-pill--active' : ''}`;
+        pill.textContent = label;
+        pill.dataset.value = value || '';
+        pill.addEventListener('click', () => {
+            selectedSpecialty = value || null;
+            renderSpecialtyPills(); // update active states
+            applyFiltersAndRender();
+        });
+        return pill;
+    }
+
+    function renderAreaOptions() {
+        const areas = [...new Set(allDoctors.map(d => d.area).filter(Boolean))].sort();
+        dom.areaFilter.innerHTML = '<option value="">📍 All Areas</option>';
+        areas.forEach(area => {
+            const opt = document.createElement('option');
+            opt.value = area;
+            opt.textContent = area;
+            dom.areaFilter.appendChild(opt);
+        });
+        dom.areaFilter.value = currentFilters.area;
+    }
+
+    function handleSearch(e) {
+        currentFilters.searchQuery = e.target.value.trim();
+        dom.searchClear.hidden = currentFilters.searchQuery === '';
+        applyFiltersAndRender();
+    }
+
+    function clearSearch() {
+        dom.searchInput.value = '';
+        currentFilters.searchQuery = '';
+        dom.searchClear.hidden = true;
+        applyFiltersAndRender();
+        dom.searchInput.focus();
+    }
+
+    function handleAreaFilter(e) {
+        currentFilters.area = e.target.value;
+        applyFiltersAndRender();
+    }
+
+    function applyFiltersAndRender() {
+        let filtered = [...allDoctors];
+
+        // Specialty filter
+        if (selectedSpecialty) {
+            filtered = filtered.filter(doc => doc.specialty === selectedSpecialty);
+        }
+
+        // Area filter
+        if (currentFilters.area) {
+            filtered = filtered.filter(doc => doc.area === currentFilters.area);
+        }
+
+        // Search filter
+        if (currentFilters.searchQuery) {
+            const query = Utils.normalize(currentFilters.searchQuery);
+            filtered = filtered.filter(doc => {
+                const searchable = Utils.getSearchableText(doc);
+                return Utils.fuzzyMatchScore(query, searchable) > 0;
+            });
+            // Sort by relevance score
+            filtered.sort((a, b) => {
+                const scoreA = Utils.fuzzyMatchScore(query, Utils.getSearchableText(a));
+                const scoreB = Utils.fuzzyMatchScore(query, Utils.getSearchableText(b));
+                return scoreB - scoreA;
+            });
+        }
+
+        renderDoctorCards(filtered);
+        dom.resultsInfo.textContent = `${filtered.length} doctor${filtered.length !== 1 ? 's' : ''} found`;
+        dom.emptyState.hidden = filtered.length > 0 || allDoctors.length === 0;
+    }
+
+    function renderDoctorCards(doctors) {
+        dom.doctorCards.innerHTML = '';
+        if (doctors.length === 0) {
+            dom.emptyState.hidden = false;
+            return;
+        }
+        dom.emptyState.hidden = true;
+        doctors.forEach(doc => {
+            dom.doctorCards.appendChild(createDoctorCard(doc));
+        });
+    }
+
+    function createDoctorCard(doc) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.doctorId = doc.doctor_id;
+        card.dataset.doctor = JSON.stringify(doc); // Store for sharing/details
+
+        const verificationBadge = doc.verification && doc.verification.toLowerCase().includes('verified')
+            ? `<span class="card__badge card__badge--verified">✅ Verified</span>`
+            : `<span class="card__badge card__badge--listed">🟡 Listed by community</span>`;
+
+        const sessionsHTML = [doc.session_1, doc.session_2, doc.session_3]
+            .filter(s => s && s.trim() !== '')
+            .map(s => `<span class="card__session-item">🕐 ${Utils.sanitizeHTML(s)}</span>`)
+            .join('');
+
+        const timingNote = doc.time_description ? `<div class="card__session-note">📝 ${Utils.sanitizeHTML(doc.time_description)}</div>` : '';
+
+        card.innerHTML = `
+            <div class="card__header">
+                <h3 class="card__name">👨‍⚕️ ${Utils.sanitizeHTML(doc.name)}</h3>
+                <span class="card__specialty">${Utils.sanitizeHTML(doc.specialty)}</span>
+            </div>
+            ${doc.degree ? `<div class="card__degree">${Utils.sanitizeHTML(doc.degree)}</div>` : ''}
+            <div class="card__chamber">🏥 ${Utils.sanitizeHTML(doc.chamber_name)}</div>
+            <div class="card__address">📍 ${Utils.sanitizeHTML(doc.chamber_address || doc.area)}, ${Utils.sanitizeHTML(doc.city || 'Cooch Behar')}</div>
+            <div class="card__sessions">${sessionsHTML}${timingNote}</div>
+            <div class="card__fees">💰 ${Utils.sanitizeHTML(doc.fees || 'Not specified')}</div>
+            ${verificationBadge}
+            <div class="card__actions">
+                ${doc.phone ? `<a href="tel:${Utils.cleanPhoneForTel(doc.phone)}" class="card__action-btn" aria-label="Call doctor">📞 Call</a>` : ''}
+                ${doc.whatsapp ? `<a href="https://wa.me/${Utils.cleanPhoneForTel(doc.whatsapp)}" target="_blank" rel="noopener" class="card__action-btn" aria-label="WhatsApp">💬 WhatsApp</a>` : ''}
+                <button class="card__action-btn card__share-btn" data-action="share" aria-label="Share doctor">📤 Share</button>
+                <button class="card__action-btn card__details-btn" data-action="details" aria-label="View details">🔍 Details</button>
+            </div>
+            <div class="card__footer">
+                🕒 Updated: ${doc.submitted_at ? new Date(doc.submitted_at).toLocaleDateString() : 'Unknown'}
+            </div>
+        `;
+        return card;
+    }
+
+    function handleCardAction(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const card = btn.closest('.card');
+        if (!card) return;
+        const docData = JSON.parse(card.dataset.doctor);
+
+        if (btn.classList.contains('card__share-btn')) {
+            PngShare.generateAndShare(docData, card);
+        } else if (btn.classList.contains('card__details-btn')) {
+            showDoctorDetails(docData);
+        }
+    }
+
+    function showDoctorDetails(doc) {
+        dom.detailModalTitle.textContent = `Dr. ${doc.name}`;
+        dom.detailModalBody.innerHTML = `
+            <p><strong>Specialty:</strong> ${Utils.sanitizeHTML(doc.specialty)}</p>
+            <p><strong>Degree:</strong> ${Utils.sanitizeHTML(doc.degree || 'N/A')}</p>
+            <p><strong>Chamber:</strong> ${Utils.sanitizeHTML(doc.chamber_name)}</p>
+            <p><strong>Address:</strong> ${Utils.sanitizeHTML(doc.chamber_address || doc.area)}, ${Utils.sanitizeHTML(doc.city)}</p>
+            <p><strong>Phone:</strong> ${doc.phone ? Utils.sanitizeHTML(doc.phone) : 'N/A'}</p>
+            <p><strong>WhatsApp:</strong> ${doc.whatsapp ? Utils.sanitizeHTML(doc.whatsapp) : 'N/A'}</p>
+            <p><strong>Sessions:</strong><br>${[doc.session_1, doc.session_2, doc.session_3].filter(Boolean).map(s => Utils.sanitizeHTML(s)).join('<br>') || 'N/A'}</p>
+            <p><strong>Timing Note:</strong> ${Utils.sanitizeHTML(doc.time_description || 'None')}</p>
+            <p><strong>Fees:</strong> ${Utils.sanitizeHTML(doc.fees || 'Not specified')}</p>
+            <p><strong>Verification:</strong> ${doc.verification || 'Listed'}</p>
+            <p><strong>Last Updated:</strong> ${doc.submitted_at || 'Unknown'}</p>
+        `;
+        dom.detailModal.hidden = false;
+    }
+
+    // ---------- Modals ----------
+    function openAddDoctorModal() {
+        dom.addDoctorModal.hidden = false;
+        dom.addDoctorSuccess.hidden = true;
+        dom.addDoctorForm.reset();
+        document.getElementById('docCity').value = CONFIG.DEFAULT_CITY;
+    }
+    function closeAddDoctorModal() {
+        dom.addDoctorModal.hidden = true;
+    }
+    async function handleDoctorSubmit(e) {
+        e.preventDefault();
+        dom.submitDoctorBtn.disabled = true;
+        dom.submitDoctorBtn.textContent = 'Submitting...';
+        const formData = {
+            name: document.getElementById('docName').value,
+            specialty: document.getElementById('docSpecialty').value,
+            degree: document.getElementById('docDegree').value,
+            chamber_name: document.getElementById('docChamber').value,
+            chamber_address: document.getElementById('docAddress').value,
+            area: document.getElementById('docArea').value,
+            city: document.getElementById('docCity').value || CONFIG.DEFAULT_CITY,
+            phone: document.getElementById('docPhone').value,
+            whatsapp: document.getElementById('docWhatsApp').value,
+            session_1: document.getElementById('docSession1').value,
+            session_2: document.getElementById('docSession2').value,
+            session_3: document.getElementById('docSession3').value,
+            time_description: document.getElementById('docTimingNote').value,
+            fees: document.getElementById('docFees').value,
+            submitted_by: document.getElementById('submitterName').value,
+            submitter_address: document.getElementById('submitterAddress').value,
+            submitter_phone: document.getElementById('submitterPhone').value
+        };
+        try {
+            const result = await DataService.submitDoctor(formData);
+            if (result.success) {
+                dom.addDoctorForm.hidden = true;
+                dom.addDoctorSuccess.hidden = false;
+                DataService.invalidateCache();
+                // Reload data in background
+                loadInitialData();
+                showToast('Doctor added successfully!');
+            } else {
+                throw new Error('Server responded with error');
+            }
+        } catch (err) {
+            showToast('Submission failed. Please try again.', true);
+        } finally {
+            dom.submitDoctorBtn.disabled = false;
+            dom.submitDoctorBtn.textContent = 'Submit Doctor';
+        }
+    }
+
+    function openFeedbackModal() {
+        dom.feedbackModal.hidden = false;
+        dom.feedbackSuccess.hidden = true;
+        dom.feedbackText.value = '';
+        dom.feedbackImage.value = '';
+    }
+    function closeFeedbackModal() {
+        dom.feedbackModal.hidden = true;
+    }
+    async function handleFeedbackSubmit() {
+        const text = dom.feedbackText.value.trim();
+        const imageFile = dom.feedbackImage.files[0];
+        if (!text && !imageFile) {
+            showToast('Please enter a message or attach an image.', true);
+            return;
+        }
+        dom.feedbackSubmit.disabled = true;
+        dom.feedbackSubmit.textContent = 'Sending...';
+        try {
+            await sendFeedbackToTelegram(text, imageFile);
+            dom.feedbackSuccess.hidden = false;
+            dom.feedbackText.value = '';
+            dom.feedbackImage.value = '';
+            setTimeout(() => {
+                dom.feedbackSuccess.hidden = true;
+                closeFeedbackModal();
+            }, 2000);
+        } catch (err) {
+            showToast('Feedback failed. Try again.', true);
+        } finally {
+            dom.feedbackSubmit.disabled = false;
+            dom.feedbackSubmit.textContent = 'Submit Feedback';
+        }
+    }
+
+    async function sendFeedbackToTelegram(text, imageFile) {
+        const chatId = CONFIG.TELEGRAM_CHAT_ID;
+        const token = CONFIG.TELEGRAM_BOT_TOKEN;
+        const baseUrl = `https://api.telegram.org/bot${token}`;
+
+        // If image exists, send photo with caption
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('photo', imageFile);
+            formData.append('caption', text || 'Feedback image');
+            const res = await fetch(`${baseUrl}/sendPhoto`, { method: 'POST', body: formData });
+            if (!res.ok) throw new Error('Image send failed');
+        } else {
+            // Send text message
+            const res = await fetch(`${baseUrl}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: text })
+            });
+            if (!res.ok) throw new Error('Text send failed');
+        }
+    }
+
+    // ---------- Voice Recording ----------
+    let mediaRecorder = null;
+    let voiceChunks = [];
+    let voiceStartTime = 0;
+    let voiceTimerInterval = null;
+
+    async function toggleVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopVoiceRecording();
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            voiceChunks = [];
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorder.ondataavailable = e => voiceChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(voiceChunks, { type: 'audio/webm' });
+                if (blob.size > 0) {
+                    await sendVoiceToTelegram(blob);
+                }
+                stream.getTracks().forEach(track => track.stop());
+                dom.voiceStatus.hidden = true;
+                dom.feedbackVoiceBtn.hidden = false;
+                clearInterval(voiceTimerInterval);
+            };
+            mediaRecorder.start();
+            voiceStartTime = Date.now();
+            dom.voiceStatus.hidden = false;
+            dom.feedbackVoiceBtn.hidden = true;
+            voiceTimerInterval = setInterval(updateVoiceTimer, 1000);
+            // Auto-stop after max duration
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') stopVoiceRecording();
+            }, CONFIG.VOICE_MAX_DURATION * 1000);
+        } catch (err) {
+            showToast('Microphone access denied.', true);
+        }
+    }
+
+    function stopVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+    }
+
+    function updateVoiceTimer() {
+        const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        dom.voiceTimer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    async function sendVoiceToTelegram(blob) {
+        const chatId = CONFIG.TELEGRAM_CHAT_ID;
+        const token = CONFIG.TELEGRAM_BOT_TOKEN;
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('voice', blob, 'feedback.ogg');
+        try {
+            await fetch(`https://api.telegram.org/bot${token}/sendVoice`, { method: 'POST', body: formData });
+            showToast('Voice feedback sent.');
+        } catch (e) {
+            showToast('Voice send failed.', true);
+        }
+    }
+
+    // ---------- Visitor Counter ----------
+    async function updateVisitorCount() {
+        const count = await DataService.fetchVisitorCount();
+        dom.visitorCount.textContent = count.toLocaleString();
+    }
+    function startVisitorRefresh() {
+        updateVisitorCount();
+        setInterval(updateVisitorCount, CONFIG.VISITOR_REFRESH_INTERVAL);
+    }
+
+    // ---------- Notice System ----------
+    async function checkNotice() {
+        const noticeText = await DataService.fetchNotice();
+        if (!noticeText) return;
+        // Show sticky bar if not dismissed
+        const dismissed = Utils.storage.get('notice_dismissed', false);
+        if (!dismissed) {
+            dom.announcementText.innerHTML = Utils.sanitizeHTML(noticeText).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+            dom.announcementBar.hidden = false;
+        }
+        // Also show modal if not dismissed
+        if (!dismissed) {
+            dom.noticeModalBody.innerHTML = dom.announcementText.innerHTML;
+            dom.noticeModal.hidden = false;
+        }
+    }
+    function dismissAnnouncement() {
+        dom.announcementBar.hidden = true;
+        dom.noticeModal.hidden = true;
+        Utils.storage.set('notice_dismissed', true);
+    }
+
+    // ---------- Slide Menu ----------
+    function toggleSlideMenu() {
+        const isOpen = dom.slideMenu.getAttribute('aria-hidden') === 'false';
+        if (isOpen) {
+            closeSlideMenu();
+        } else {
+            dom.slideMenu.setAttribute('aria-hidden', 'false');
+            dom.hamburgerBtn.setAttribute('aria-expanded', 'true');
+        }
+    }
+    function closeSlideMenu() {
+        dom.slideMenu.setAttribute('aria-hidden', 'true');
+        dom.hamburgerBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    // ---------- Helpers ----------
+    function showLoading(show) {
+        dom.loadingSkeleton.hidden = !show;
+        dom.doctorCards.hidden = show;
+        dom.emptyState.hidden = true;
+    }
+    function showError() {
+        dom.errorState.hidden = false;
+        dom.doctorCards.hidden = true;
+    }
+    function hideError() {
+        dom.errorState.hidden = true;
+    }
+    function showToast(message, isError = false) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        toast.style.background = isError ? '#c53030' : '#1a202c';
+        dom.toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), CONFIG.TOAST_DURATION);
+    }
+    function setupOnlineStatus() {
+        window.addEventListener('online', () => { isOnline = true; });
+        window.addEventListener('offline', () => { isOnline = false; showToast('You are offline. Data may be stale.', true); });
+    }
+
+    // Start the app when DOM is ready
+    document.addEventListener('DOMContentLoaded', init);
+
+    // Public API (if needed externally)
+    return { init };
 })();
