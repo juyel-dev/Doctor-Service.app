@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2c7a7b">
+  <meta name="description" content="Community-powered healthcare directory for Cooch Behar. Find doctors, chambers, specialties, and contact information.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <title>Cooch Behar Healthcare Directory</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ─── Announcement Bar (dynamic from Sheet T1) ─── -->
+  <div id="announcement-bar" class="announcement-bar hidden" role="banner" aria-live="polite">
+    <span id="announcement-text"></span>
+    <button id="announcement-close" aria-label="Dismiss announcement">&#10005;</button>
+  </div>
+
+  <!-- ─── Header ─── -->
+  <header class="app-header">
+    <div class="header-content">
+      <h1>Cooch Behar Healthcare</h1>
+      <p>Community-powered healthcare discovery platform</p>
+      <button id="menu-toggle" class="menu-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="main-nav">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+    <nav id="main-nav" class="main-nav hidden" aria-hidden="true" aria-label="Main navigation">
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Use</a>
+      <a href="docs.html">Documentation</a>
+      <a href="transparency.html">Transparency</a>
+    </nav>
+  </header>
+
+  <!-- ─── Search ─── -->
+  <section class="search-section" aria-label="Search">
+    <div class="search-container">
+      <input 
+        type="text" 
+        id="search-input" 
+        placeholder="&#x09A1;&#x09BE;&#x0995;&#x09CD;&#x09A4;&#x09BE;&#x09B0;, &#x09B8;&#x09CD;&#x09AA;&#x09C7;&#x09B6;&#x09BE;&#x09B2;&#x09BF;&#x099F;&#x09BF;, &#x098F;&#x09B0;&#x09BF;&#x09DF;&#x09BE;, &#x09AB;&#x09CB;&#x09A8;..." 
+        aria-label="Search doctors by name, specialty, area, or phone"
+        autocomplete="off"
+        inputmode="search"
+      >
+    </div>
+  </section>
+
+  <!-- ─── Specialty Filter Pills ─── -->
+  <section class="pills-section" aria-label="Specialty filters">
+    <div class="pills-container" id="specialty-pills">
+      <div class="loading-state">Loading specialties...</div>
+    </div>
+  </section>
+
+  <!-- ─── Area Filter ─── -->
+  <section class="filter-section" aria-label="Area filter">
+    <label for="area-filter" class="hidden">Filter by area</label>
+    <select id="area-filter" aria-label="Filter by area">
+      <option value="">&#x09B8;&#x09AC; &#x098F;&#x09B0;&#x09BF;&#x09DF;&#x09BE; (All Areas)</option>
+    </select>
+  </section>
+
+  <!-- ─── Visitor Stats ─── -->
+  <section class="stats-section" aria-live="polite" aria-atomic="true">
+    <div class="stats-bar">
+      &#128101; Total Visitors: <span id="visitor-count">...</span>
+    </div>
+  </section>
+
+  <!-- ─── Doctor Cards ─── -->
+  <main id="doctor-list" class="doctor-list" aria-label="Doctor directory">
+    <div class="loading-state">Loading healthcare directory...</div>
+  </main>
+
+  <!-- ─── Empty State ─── -->
+  <div id="empty-state" class="empty-state hidden" role="status">
+    <p style="font-size: 1.1rem; margin-bottom: 8px;">&#128269; No results found</p>
+    <p>&#x0995;&#x09CB;&#x09A8;&#x09CB; &#x09AB;&#x09B2;&#x09BE;&#x09AB;&#x09B2; &#x09AA;&#x09BE;&#x0993;&#x09DF;&#x09BE; &#x09AF;&#x09BE;&#x09DF;&#x09A8;&#x09BF;</p>
+    <p style="margin-top: 12px; font-size: 0.85rem;">Try different keywords or add a new doctor</p>
+  </div>
+
+  <!-- ─── Footer ─── -->
+  <footer class="app-footer">
+    <p>&copy; 2026 Cooch Behar Healthcare Directory</p>
+    <p>Built for the community, by the community</p>
+  </footer>
+
+  <!-- ─── Floating Action Buttons ─── -->
+  <div class="fab-container">
+    <button id="fab-feedback" class="fab fab-secondary" aria-label="Send feedback">&#128172;</button>
+    <button id="fab-add" class="fab fab-primary" aria-label="Add a doctor">&#10133;</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       ADD DOCTOR MODAL
+       ════════════════════════════════════════════════════════════ -->
+  <div id="modal-add" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <div class="modal-overlay" data-close></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="add-title">&#128203; Add Doctor</h2>
+        <button class="modal-close" aria-label="Close modal">&#10005;</button>
+      </div>
+      <form id="form-add-doctor" class="modal-form" novalidate>
+        <div class="form-group">
+          <label for="add-name" class="required">Doctor Name</label>
+          <input type="text" id="add-name" name="name" required placeholder="Dr. Full Name">
+        </div>
+
+        <div class="form-group">
+          <label for="add-specialty" class="required">Specialty</label>
+          <input type="text" id="add-specialty" name="specialty" required placeholder="e.g., Child Specialist, ENT, Medicine">
+        </div>
+
+        <div class="form-group">
+          <label for="add-degree">Degree</label>
+          <input type="text" id="add-degree" name="degree" placeholder="e.g., MBBS, MD, MS">
+        </div>
+
+        <div class="form-group">
+          <label for="add-chamber" class="required">Chamber Name</label>
+          <input type="text" id="add-chamber" name="chamber_name" required placeholder="Clinic or Hospital name">
+        </div>
+
+        <div class="form-group">
+          <label for="add-address">Chamber Address</label>
+          <input type="text" id="add-address" name="chamber_address" placeholder="Full street address">
+        </div>
+
+        <div class="form-group">
+          <label for="add-area" class="required">Area / Locality</label>
+          <input type="text" id="add-area" name="area" required placeholder="e.g., Main Road, Bus Stand">
+        </div>
+
+        <div class="form-group">
+          <label for="add-city">City</label>
+          <input type="text" id="add-city" name="city" value="Cooch Behar" placeholder="City name">
+        </div>
+
+        <div class="form-group">
+          <label for="add-phone" class="required">Phone Number</label>
+          <input type="tel" id="add-phone" name="phone" required placeholder="Contact number for patients" inputmode="tel">
+        </div>
+
+        <div class="form-group">
+          <label for="add-whatsapp">WhatsApp Number</label>
+          <input type="tel" id="add-whatsapp" name="whatsapp" placeholder="If different from phone" inputmode="tel">
+        </div>
+
+        <div class="form-group">
+          <label for="add-session-1">Session 1 Timing</label>
+          <input type="text" id="add-session-1" name="session_1" placeholder="e.g., 10:00 AM - 1:00 PM">
+        </div>
+
+        <div class="form-group">
+          <label for="add-session-2">Session 2 Timing</label>
+          <input type="text" id="add-session-2" name="session_2" placeholder="e.g., 5:00 PM - 8:00 PM">
+        </div>
+
+        <div class="form-group">
+          <label for="add-session-3">Session 3 Timing</label>
+          <input type="text" id="add-session-3" name="session_3" placeholder="If applicable">
+        </div>
+
+        <div class="form-group">
+          <label for="add-notes">Timing Notes</label>
+          <input type="text" id="add-notes" name="time_description" placeholder="e.g., Sunday closed, Emergency only">
+        </div>
+
+        <div class="form-group">
+          <label for="add-fees">Consultation Fee</label>
+          <input type="text" id="add-fees" name="fees" placeholder="e.g., &#8377;500">
+        </div>
+
+        <div class="form-section-title">Your Information</div>
+
+        <div class="form-group">
+          <label for="add-submitter" class="required">Your Name</label>
+          <input type="text" id="add-submitter" name="submitter_name" required placeholder="Your full name">
+        </div>
+
+        <div class="form-group">
+          <label for="add-submitter-address">Your Address</label>
+          <input type="text" id="add-submitter-address" name="submitter_address" placeholder="Your address (optional)">
+        </div>
+
+        <div class="form-group">
+          <label for="add-submitter-phone" class="required">Your Phone</label>
+          <input type="tel" id="add-submitter-phone" name="submitter_phone" required placeholder="Your contact number" inputmode="tel">
+        </div>
+
+        <button type="submit" class="btn-submit">Submit Doctor</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       FEEDBACK MODAL
+       ════════════════════════════════════════════════════════════ -->
+  <div id="modal-feedback" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+    <div class="modal-overlay" data-close></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="feedback-title">&#128172; Send Feedback</h2>
+        <button class="modal-close" aria-label="Close modal">&#10005;</button>
+      </div>
+      <form id="form-feedback" class="modal-form" novalidate>
+        <div class="form-group">
+          <label for="feedback-text">Your Feedback</label>
+          <textarea id="feedback-text" name="feedback_text" placeholder="Report incorrect info, suggest features, or share your experience..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Attach Image (optional)</label>
+          <div class="file-input-wrapper">
+            <input type="file" id="feedback-image" name="feedback_image" accept="image/*" aria-label="Upload image">
+            <span class="file-input-label">&#128247; Tap to upload image</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Voice Message (optional, max 15 sec)</label>
+          <button type="button" id="voice-record-btn" class="voice-record-btn">&#127908; Record Voice</button>
+          <div id="voice-timer" class="voice-timer hidden"></div>
+        </div>
+
+        <button type="submit" class="btn-submit">Send Feedback</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       DOCTOR DETAILS MODAL
+       ════════════════════════════════════════════════════════════ -->
+  <div id="modal-details" class="modal hidden" role="dialog" aria-modal="true" aria-label="Doctor details">
+    <div class="modal-overlay" data-close></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Doctor Details</h2>
+        <button class="modal-close" aria-label="Close modal">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Dynamic content injected by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Toast Notification ─── -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- ─── Scripts (load in dependency order) ─── -->
+  <script src="config.js"></script>
+  <script src="utils.js"></script>
+  <script src="data.js"></script>
+  <script src="png-share.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
