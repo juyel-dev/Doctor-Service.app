@@ -1,0 +1,17 @@
+{
+  "name": "Cooch Behar Healthcare Directory",
+  "short_name": "CB Healthcare",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7fafc",
+  "theme_color": "#2c7a7b",
+  "description": "Community-verified doctor directory for Cooch Behar",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
