@@ -1,22 +1,21 @@
 {
-  "name": "Cooch Behar Healthcare Directory",
-  "short_name": "CB Healthcare",
-  "description": "Community-powered healthcare discovery platform for Cooch Behar",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#f7fafc",
-  "theme_color": "#2c7a7b",
-  "orientation": "portrait-primary",
-  "scope": "./",
-  "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "categories": ["health", "medical"],
-  "lang": "en",
-  "dir": "ltr"
+    "name": "Cooch Behar Healthcare Directory",
+    "short_name": "CBH Directory",
+    "description": "Community-powered healthcare discovery platform for Cooch Behar. Find verified doctors, specialists, and clinics.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f7fafc",
+    "theme_color": "#2c7a7b",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "lang": "en-IN",
+    "categories": ["health", "medical", "directory"],
+    "iarc_rating_id": "e-safe-for-everyone"
 }
