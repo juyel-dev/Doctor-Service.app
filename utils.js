@@ -1,221 +1,212 @@
 /**
- * COOCH BEHAR HEALTHCARE DIRECTORY
- * Utility Functions
- * 
- * Shared utilities for data processing, sanitization, search scoring,
- * and formatting. Zero dependencies.
+ * utils.js — Pure utility functions for the directory
+ * Includes CSV parsing, debounce, sanitization, localStorage helpers, etc.
+ * All functions are pure and reusable, with no DOM dependencies.
  */
 
-(function() {
-  'use strict';
-
-  window.CBH = window.CBH || {};
-
-  CBH.utils = {
-    /**
-     * Debounce function execution. Returns a wrapped function that delays
-     * invocation until `wait` milliseconds have elapsed since the last call.
-     */
-    debounce: function(func, wait) {
-      var timeout;
-      return function() {
-        var context = this, args = arguments;
-        clearTimeout(timeout);
-        timeout = setTimeout(function() {
-          func.apply(context, args);
-        }, wait);
-      };
-    },
+const Utils = (() => {
 
     /**
-     * Robust CSV parser supporting:
-     * - Quoted fields containing commas
-     * - Escaped quotes ("")
-     * - CRLF and LF line endings
-     * Returns array of objects using the first row as headers.
+     * Parse CSV string into array of objects.
+     * Handles quoted fields, commas within quotes, and header row mapping.
+     * @param {string} csvText - Raw CSV data
+     * @returns {Array<Object>} Array of row objects with keys from header
      */
-    parseCSV: function(csvText) {
-      var lines = [];
-      var currentLine = [];
-      var currentField = '';
-      var insideQuotes = false;
+    function parseCSV(csvText) {
+        if (!csvText || typeof csvText !== 'string') return [];
+        const rows = [];
+        let current = '';
+        let inQuotes = false;
 
-      for (var i = 0; i < csvText.length; i++) {
-        var char = csvText[i];
-        var nextChar = csvText[i + 1];
-
-        if (insideQuotes) {
-          if (char === '"') {
-            if (nextChar === '"') {
-              currentField += '"';
-              i++; // Skip escaped quote
+        // Parse lines character by character to respect quoted commas
+        const lines = [];
+        for (let i = 0; i < csvText.length; i++) {
+            const char = csvText[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+                current += char;
+            } else if (char === '\n' && !inQuotes) {
+                lines.push(current);
+                current = '';
             } else {
-              insideQuotes = false;
+                current += char;
             }
-          } else {
-            currentField += char;
-          }
-        } else {
-          if (char === '"') {
-            insideQuotes = true;
-          } else if (char === ',') {
-            currentLine.push(currentField.trim());
-            currentField = '';
-          } else if (char === '\n' || char === '\r') {
-            if (currentField !== '' || currentLine.length > 0) {
-              currentLine.push(currentField.trim());
-              lines.push(currentLine);
-              currentLine = [];
-              currentField = '';
-            }
-            if (char === '\r' && nextChar === '\n') {
-              i++;
-            }
-          } else {
-            currentField += char;
-          }
         }
-      }
+        if (current) lines.push(current);
 
-      if (currentField !== '' || currentLine.length > 0) {
-        currentLine.push(currentField.trim());
-        lines.push(currentLine);
-      }
+        if (lines.length < 2) return [];
 
-      if (lines.length < 2) return [];
+        // Extract headers
+        const headers = parseLineToArray(lines[0]);
+        // Normalize header names (trim, remove quotes)
+        const normalizedHeaders = headers.map(h => h.trim().replace(/^"|"$/g, '').toLowerCase().replace(/\s+/g, '_'));
 
-      var headers = lines[0];
-      var results = [];
-
-      for (var j = 1; j < lines.length; j++) {
-        var obj = {};
-        var line = lines[j];
-        for (var k = 0; k < headers.length; k++) {
-          obj[headers[k]] = line[k] !== undefined ? line[k] : '';
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseLineToArray(lines[i]);
+            const row = {};
+            normalizedHeaders.forEach((header, idx) => {
+                let val = values[idx] || '';
+                // Remove surrounding quotes and unescape internal quotes
+                val = val.trim().replace(/^"|"$/g, '').replace(/""/g, '"');
+                row[header] = val;
+            });
+            // Ensure doctor_id exists; if missing, skip or generate
+            if (!row.doctor_id) row.doctor_id = `DR${String(i).padStart(4, '0')}`;
+            rows.push(row);
         }
-        results.push(obj);
-      }
-
-      return results;
-    },
-
-    /**
-     * Basic HTML sanitization to prevent XSS injection.
-     * Converts special characters to HTML entities via textContent assignment.
-     */
-    sanitizeHTML: function(str) {
-      if (!str) return '';
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    },
-
-    /**
-     * Format an ISO or standard date string to Indian locale format.
-     */
-    formatDate: function(dateStr) {
-      if (!dateStr) return '';
-      try {
-        var date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
-        return date.toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric'
-        });
-      } catch (e) {
-        return dateStr;
-      }
-    },
-
-    /**
-     * Normalize text for search comparison:
-     * lowercase, trim, collapse whitespace.
-     */
-    normalizeText: function(str) {
-      if (!str) return '';
-      return str.toString().toLowerCase().trim().replace(/\s+/g, ' ');
-    },
-
-    /**
-     * Calculate search relevance score for a doctor record against a query.
-     * 
-     * Scoring weights:
-     *   - Full query substring match: +100
-     *   - All tokens present in record: +50
-     *   - Per-token match: +10 each
-     *   - Exact field match: +25 per field
-     *   - Token within field: +5 per field
-     * 
-     * Returns 0 if no match found.
-     */
-    calculateSearchScore: function(query, doctor, fields) {
-      var normalizedQuery = this.normalizeText(query);
-      if (!normalizedQuery) return 1;
-
-      var tokens = normalizedQuery.split(' ').filter(function(t) { return t.length > 0; });
-      var fullText = '';
-
-      for (var i = 0; i < fields.length; i++) {
-        var field = fields[i];
-        if (doctor[field]) {
-          fullText += ' ' + this.normalizeText(doctor[field]);
-        }
-      }
-
-      fullText = fullText.trim();
-      if (!fullText) return 0;
-
-      var score = 0;
-
-      if (fullText.indexOf(normalizedQuery) !== -1) {
-        score += 100;
-      }
-
-      var allTokensPresent = true;
-      var tokenMatchCount = 0;
-
-      for (var j = 0; j < tokens.length; j++) {
-        if (fullText.indexOf(tokens[j]) !== -1) {
-          tokenMatchCount++;
-        } else {
-          allTokensPresent = false;
-        }
-      }
-
-      if (allTokensPresent) score += 50;
-      score += tokenMatchCount * 10;
-
-      for (var k = 0; k < fields.length; k++) {
-        var fieldValue = this.normalizeText(doctor[fields[k]]);
-        if (fieldValue.indexOf(normalizedQuery) !== -1) score += 25;
-        for (var t = 0; t < tokens.length; t++) {
-          if (fieldValue.indexOf(tokens[t]) !== -1) score += 5;
-        }
-      }
-
-      return score;
-    },
-
-    /**
-     * Generate a unique session ID for visitor tracking.
-     */
-    generateSessionId: function() {
-      return 'cbh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    },
-
-    /**
-     * Escape special regex characters for safe RegExp construction.
-     */
-    escapeRegex: function(str) {
-      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    },
-
-    /**
-     * Deep clone a serializable object/array.
-     */
-    deepClone: function(obj) {
-      return JSON.parse(JSON.stringify(obj));
+        return rows;
     }
-  };
+
+    /**
+     * Helper: parse a CSV line into an array, handling quoted commas.
+     */
+    function parseLineToArray(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let char of line) {
+            if (char === '"') {
+                inQuotes = !inQuotes;
+                current += char;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current);
+        return result;
+    }
+
+    /**
+     * Creates a debounced version of a function.
+     * @param {Function} fn - Function to debounce
+     * @param {number} delay - Delay in ms
+     * @returns {Function} Debounced function
+     */
+    function debounce(fn, delay = 300) {
+        let timer;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    /**
+     * Simple HTML sanitizer to prevent XSS.
+     * Escapes <, >, &, ", ' characters.
+     * @param {string} str - Untrusted string
+     * @returns {string} Sanitized string
+     */
+    function sanitizeHTML(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * Normalize a string for search: lowercase, trim, remove extra spaces.
+     * @param {string} str
+     * @returns {string}
+     */
+    function normalize(str) {
+        return (str || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    }
+
+    /**
+     * Build a searchable string from a doctor object.
+     * Includes name, specialty, chamber, address, area, city, phone.
+     * @param {Object} doctor - doctor row object
+     * @returns {string} concatenated searchable text
+     */
+    function getSearchableText(doctor) {
+        const fields = ['name', 'specialty', 'chamber_name', 'chamber_address', 'area', 'city', 'phone'];
+        return fields.map(f => doctor[f] || '').join(' ').toLowerCase();
+    }
+
+    /**
+     * Perform client-side fuzzy search: token matching + substring matching.
+     * Returns a score (higher = better match).
+     * @param {string} query - user search query
+     * @param {string} searchableText - concatenated text to search in
+     * @returns {number} score
+     */
+    function fuzzyMatchScore(query, searchableText) {
+        if (!query || !searchableText) return 0;
+        const q = normalize(query);
+        const target = normalize(searchableText);
+        if (target.includes(q)) return 100; // exact substring
+        const queryTokens = q.split(/\s+/);
+        let tokenMatches = 0;
+        for (let token of queryTokens) {
+            if (target.includes(token)) tokenMatches++;
+        }
+        return tokenMatches * 30; // proportional score
+    }
+
+    /**
+     * localStorage helpers with JSON parse/stringify safety.
+     */
+    const storage = {
+        get(key, defaultValue = null) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : defaultValue;
+            } catch {
+                return defaultValue;
+            }
+        },
+        set(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                console.warn('localStorage set failed', e);
+            }
+        },
+        remove(key) {
+            try {
+                localStorage.removeItem(key);
+            } catch (e) {}
+        }
+    };
+
+    /**
+     * Generate a simple unique session ID for visitor counting.
+     */
+    function generateSessionId() {
+        return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    /**
+     * Detect if device is primarily mobile (for UI tweaks).
+     */
+    function isMobile() {
+        return /Mobi|Android/i.test(navigator.userAgent);
+    }
+
+    /**
+     * Format phone number for tel: link (remove non-digit characters).
+     */
+    function cleanPhoneForTel(phone) {
+        return phone.replace(/[^0-9+]/g, '');
+    }
+
+    // Public API
+    return {
+        parseCSV,
+        debounce,
+        sanitizeHTML,
+        normalize,
+        getSearchableText,
+        fuzzyMatchScore,
+        storage,
+        generateSessionId,
+        isMobile,
+        cleanPhoneForTel
+    };
 })();
