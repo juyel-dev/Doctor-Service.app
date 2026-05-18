@@ -1,122 +1,159 @@
-/**
- * data.js — Data service for the healthcare directory.
- * Responsible for fetching CSV from Google Sheets, parsing, caching,
- * visitor counting via Google Apps Script, and fetching T1 notice.
- * Uses Utils and CONFIG from global scope.
- */
-const DataService = (() => {
-    let doctorsCache = null;
-    let cacheTimestamp = 0;
-    let visitorCount = 0;
+const DataService=(()=>{
+let doctors=[]
+let visitors=0
 
-    /**
-     * Fetch and parse doctor CSV. Uses cache if fresh.
-     * @returns {Promise<Array>} Array of doctor objects
-     */
-    async function fetchDoctors(forceRefresh = false) {
-        const now = Date.now();
-        if (!forceRefresh && doctorsCache && (now - cacheTimestamp < CONFIG.CSV_CACHE_TTL)) {
-            return doctorsCache;
-        }
-        try {
-            const response = await fetch(CONFIG.SHEET_CSV_URL, { cache: 'no-cache' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const csvText = await response.text();
-            const parsed = Utils.parseCSV(csvText);
-            // Filter out rows without a name (likely empty)
-            doctorsCache = parsed.filter(doc => doc.name && doc.name.trim() !== '');
-            cacheTimestamp = now;
-            return doctorsCache;
-        } catch (error) {
-            console.error('Failed to fetch doctor data:', error);
-            // Return stale cache if available, otherwise re-throw
-            if (doctorsCache) return doctorsCache;
-            throw error;
-        }
-    }
+const fetchCSV=async()=>{
+const r=await fetch(CONFIG.CSV_URL+"#"+Date.now())
+if(!r.ok)throw new Error("CSV fetch failed")
+return parseCSV(await r.text())
+}
 
-    /**
-     * Get the current visitor count from Google Apps Script.
-     * @returns {Promise<number>}
-     */
-    async function fetchVisitorCount() {
-        try {
-            const response = await fetch(`${CONFIG.GAS_WEBAPP_URL}?action=getStats`, { cache: 'no-cache' });
-            const data = await response.json();
-            if (data && typeof data.visitors === 'number') {
-                visitorCount = data.visitors;
-            }
-        } catch (e) {
-            console.warn('Visitor count fetch failed:', e);
-        }
-        return visitorCount;
-    }
+const mapDoctor=d=>{
+const searchable=[
+d.name,
+d.specialty,
+d.degree,
+d.chamber_name,
+d.chamber_address,
+d.area,
+d.city,
+d.phone
+].join(" ")
+return{
+...d,
+searchable:normalize(searchable)
+}
+}
 
-    /**
-     * Send a pageview event to GAS to increment counter.
-     * Uses session ID to avoid duplicate counts per session.
-     */
-    async function recordPageview() {
-        const sessionId = Utils.storage.get('session_id', Utils.generateSessionId());
-        Utils.storage.set('session_id', sessionId);
-        try {
-            await fetch(CONFIG.GAS_WEBAPP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'pageview', sessionId })
-            });
-        } catch (e) {
-            console.warn('Pageview recording failed:', e);
-        }
-    }
+const loadDoctors=async()=>{
+const rows=await fetchCSV()
+doctors=rows.map(mapDoctor)
+return doctors
+}
 
-    /**
-     * Fetch notice content from cell T1 of the sheet (via GAS or CSV).
-     * For MVP, we'll fetch from a GAS endpoint returning the notice text.
-     * @returns {Promise<string>}
-     */
-    async function fetchNotice() {
-        try {
-            const response = await fetch(`${CONFIG.GAS_WEBAPP_URL}?action=getNotice`, { cache: 'no-cache' });
-            const data = await response.json();
-            return (data && data.notice) ? data.notice : '';
-        } catch (e) {
-            console.warn('Notice fetch failed:', e);
-            return '';
-        }
-    }
+const getDoctors=()=>doctors
 
-    /**
-     * Submit a new doctor record to Google Apps Script.
-     * @param {Object} doctorData - form data matching sheet columns
-     * @returns {Promise<Object>} response with success and doctor_id
-     */
-    async function submitDoctor(doctorData) {
-        const payload = {
-            action: 'addDoctor',
-            ...doctorData
-        };
-        const response = await fetch(CONFIG.GAS_WEBAPP_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error('Submission failed');
-        return await response.json();
-    }
+const getAreas=()=>[
+...new Set(doctors.map(v=>v.area).filter(Boolean))
+].sort()
 
-    // Expose cache invalidator for after submission
-    function invalidateCache() {
-        doctorsCache = null;
-        cacheTimestamp = 0;
-    }
+const getSpecs=()=>[
+...new Set(doctors.map(v=>v.specialty).filter(Boolean))
+].sort()
 
-    return {
-        fetchDoctors,
-        fetchVisitorCount,
-        recordPageview,
-        fetchNotice,
-        submitDoctor,
-        invalidateCache
-    };
-})();
+const searchDoctors=(q="",spec="",area="")=>{
+const res=doctors.filter(d=>{
+const mq=!q||fuzzy(q,d.searchable)>0
+const ms=!spec||d.specialty===spec
+const ma=!area||d.area===area
+return mq&&ms&&ma
+})
+if(q){
+res.sort((a,b)=>
+fuzzy(q,b.searchable)-fuzzy(q,a.searchable)
+)
+}
+return res
+}
+
+const submitDoctor=async(data)=>{
+const r=await fetch(CONFIG.GAS_URL,{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+action:"submitDoctor",
+data
+})
+})
+return r.json()
+}
+
+const updateVisitor=async()=>{
+try{
+await fetch(CONFIG.GAS_URL,{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+action:"pageview",
+sid:uid()
+})
+})
+}catch{}
+}
+
+const getVisitors=async()=>{
+try{
+const r=await fetch(CONFIG.GAS_URL+"?action=getStats")
+const j=await r.json()
+visitors=j.total||0
+return visitors
+}catch{
+return visitors
+}
+}
+
+const getNotice=()=>{
+const row=doctors[0]||{}
+return row.notice||""
+}
+
+const tgMsg=async(msg)=>{
+const u=`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendMessage`
+return fetch(u,{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+chat_id:CONFIG.TG_CHAT,
+text:msg
+})
+})
+}
+
+const tgPhoto=async(file,caption="Feedback Image")=>{
+const fd=new FormData()
+fd.append("chat_id",CONFIG.TG_CHAT)
+fd.append("caption",caption)
+fd.append("photo",file)
+return fetch(
+`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendPhoto`,
+{
+method:"POST",
+body:fd
+}
+)
+}
+
+const tgVoice=async(blob)=>{
+const fd=new FormData()
+fd.append("chat_id",CONFIG.TG_CHAT)
+fd.append("voice",blob,"voice.webm")
+return fetch(
+`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendVoice`,
+{
+method:"POST",
+body:fd
+}
+)
+}
+
+return{
+loadDoctors,
+getDoctors,
+getAreas,
+getSpecs,
+searchDoctors,
+submitDoctor,
+updateVisitor,
+getVisitors,
+getNotice,
+tgMsg,
+tgPhoto,
+tgVoice
+}
+})()
