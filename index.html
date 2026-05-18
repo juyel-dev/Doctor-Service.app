@@ -3,373 +3,118 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Cooch Behar Healthcare Directory — Community-powered healthcare discovery platform. Find verified doctors, specialists, and clinics in Cooch Behar.">
-<meta name="theme-color" content="#2c7a7b">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="CBH Directory">
-
 <title>Cooch Behar Healthcare Directory</title>
-
+<meta name="theme-color" content="#2c7a7b">
+<meta name="description" content="Community-powered healthcare discovery platform for Cooch Behar">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
-
-<link rel="preconnect" href="https://docs.google.com" crossorigin>
-<link rel="preconnect" href="https://script.google.com" crossorigin>
-<link rel="preconnect" href="https://api.telegram.org" crossorigin>
-
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
-
 <body>
 
-<div class="sticky-header">
-
-<aside id="announcementBar" class="announcement-bar" role="complementary" aria-label="Announcement" hidden>
-<div class="announcement-bar__content">
-<span id="announcementText" class="announcement-bar__text"></span>
+<div id="noticeBar" class="notice hidden">
+<div class="noticeText" id="noticeText"></div>
+<button id="closeNotice" class="iconBtn">✕</button>
 </div>
-<button id="announcementDismiss" class="announcement-bar__dismiss" type="button" aria-label="Dismiss announcement">&times;</button>
-</aside>
 
-<header class="header" role="banner">
-<button id="hamburgerBtn" class="header__hamburger" type="button" aria-label="Open menu" aria-expanded="false">
-<span class="hamburger-line"></span>
-<span class="hamburger-line"></span>
-<span class="hamburger-line"></span>
-</button>
-
-<div class="header__brand">
-<h1 class="header__title">Cooch Behar Healthcare</h1>
-<p class="header__tagline">Community-powered healthcare directory</p>
+<header class="header">
+<div>
+<h1>Cooch Behar Healthcare</h1>
+<p>Community-powered healthcare directory</p>
 </div>
+<button id="menuBtn" class="iconBtn">☰</button>
 </header>
 
-</div>
-
-<nav id="slideMenu" class="slide-menu" aria-hidden="true">
-<div id="slideMenuBackdrop" class="slide-menu__backdrop"></div>
-
-<div class="slide-menu__panel">
-<div class="slide-menu__header">
-<span class="slide-menu__title">Menu</span>
-<button id="slideMenuClose" class="slide-menu__close" type="button" aria-label="Close menu">&times;</button>
-</div>
-
-<ul class="slide-menu__list">
-<li><a href="privacy-policy.html" class="slide-menu__link">Privacy Policy</a></li>
-<li><a href="terms.html" class="slide-menu__link">Terms of Service</a></li>
-<li><a href="docs.html" class="slide-menu__link">Documentation</a></li>
-<li><a href="transparency.html" class="slide-menu__link">Transparency Report</a></li>
-</ul>
-
-<div class="slide-menu__footer">
-<small>v1.0 MVP — Community Edition</small>
-</div>
-</div>
+<nav id="drawer" class="drawer">
+<a href="#">Privacy Policy</a>
+<a href="#">Terms</a>
+<a href="#">Transparency</a>
+<a href="#">Docs</a>
 </nav>
 
-<main id="mainContent" class="main-content">
+<main class="main">
 
-<section class="search-section" aria-label="Search doctors">
-<div class="search-wrapper">
-
-<svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<circle cx="11" cy="11" r="8"></circle>
-<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-</svg>
-
-<input
-id="searchInput"
-class="search-input"
-type="search"
-placeholder="Search doctor, specialty, area, phone..."
-autocomplete="off"
-aria-label="Search doctors by name, specialty, area, or phone"
->
-
-<button id="searchClear" class="search-clear" type="button" aria-label="Clear search" hidden>&times;</button>
-
-</div>
-</section>
-
-<section class="specialty-section" aria-label="Filter by specialty">
-<div id="specialtyPills" class="specialty-pills">
-<span class="specialty-pill specialty-pill--skeleton">Loading...</span>
-</div>
-</section>
-
-<section class="area-section" aria-label="Filter by area">
-<div class="area-select-wrapper">
-<select id="areaFilter" class="area-select" aria-label="Select area">
-<option value="">📍 All Areas</option>
+<section class="searchWrap">
+<input id="searchInput" type="search" placeholder="Doctor,specialty,area,phone...">
+<select id="areaFilter">
+<option value="">All Areas</option>
 </select>
-</div>
 </section>
 
-<section class="stats-bar" aria-label="Visitor statistics">
-<span class="stats-bar__icon" aria-hidden="true">👥</span>
-<span class="stats-bar__label">Total Visitors:</span>
-<span id="visitorCount" class="stats-bar__count">---</span>
+<section id="specWrap" class="specWrap"></section>
+
+<section class="stats">
+<div>👥 Total Visitors</div>
+<strong id="visitorCount">0</strong>
 </section>
 
-<div id="resultsInfo" class="results-info" aria-live="polite"></div>
+<section id="doctorList" class="list"></section>
 
-<div id="loadingSkeleton" class="loading-skeleton" aria-label="Loading doctors">
-<div class="skeleton-card"></div>
-<div class="skeleton-card"></div>
-<div class="skeleton-card"></div>
-</div>
-
-<div id="doctorCards" class="doctor-cards" aria-label="Doctor listings"></div>
-
-<div id="emptyState" class="empty-state" hidden>
-<div class="empty-state__icon" aria-hidden="true">🔍</div>
-<h2 class="empty-state__title">No doctors found</h2>
-<p class="empty-state__text">
-Try adjusting your search or filters. You can also add a new doctor using the <strong>+</strong> button.
-</p>
-</div>
-
-<div id="errorState" class="error-state" hidden>
-<div class="error-state__icon" aria-hidden="true">⚠️</div>
-<h2 class="error-state__title">Unable to load data</h2>
-<p class="error-state__text">
-Please check your connection and try again. If the problem persists, send us feedback.
-</p>
-<button id="retryBtn" class="btn btn--primary" type="button">Retry</button>
+<div id="emptyState" class="empty hidden">
+<p>No doctors found</p>
 </div>
 
 </main>
 
-<div class="fab-container" aria-label="Action buttons">
+<button id="addFab" class="fab">＋</button>
+<button id="feedbackFab" class="fab feedbackFab">💬</button>
 
-<button id="fabAddDoctor" class="fab fab--primary" type="button" aria-label="Add a doctor" title="Add Doctor">
-<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-<line x1="12" y1="5" x2="12" y2="19"></line>
-<line x1="5" y1="12" x2="19" y2="12"></line>
-</svg>
-</button>
-
-<button id="fabFeedback" class="fab fab--secondary" type="button" aria-label="Send feedback" title="Feedback">
-<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-</svg>
-</button>
-
+<div id="doctorModal" class="modal hidden">
+<div class="modalBox">
+<div class="modalHead">
+<h2>Add Doctor</h2>
+<button data-close class="iconBtn">✕</button>
 </div>
 
-<div id="addDoctorModal" class="modal modal--fullscreen" role="dialog" aria-modal="true" aria-label="Add a doctor" hidden>
+<form id="doctorForm" class="form">
 
-<div class="modal__backdrop"></div>
+<input name="name" placeholder="Doctor Name *" required>
+<input name="specialty" placeholder="Specialty *" required>
+<input name="degree" placeholder="Degree">
+<input name="chamber_name" placeholder="Chamber Name *" required>
+<input name="chamber_address" placeholder="Chamber Address">
+<input name="area" placeholder="Area *" required>
+<input name="city" placeholder="City">
+<input name="phone" placeholder="Phone *" required>
+<input name="whatsapp" placeholder="WhatsApp">
+<input name="session_1" placeholder="Session 1">
+<input name="session_2" placeholder="Session 2">
+<input name="session_3" placeholder="Session 3">
+<input name="time_description" placeholder="Timing Notes">
+<input name="fees" placeholder="Fees">
 
-<div class="modal__content modal__content--fullscreen">
+<div class="divider">Your Info</div>
 
-<div class="modal__header">
-<h2 class="modal__title">📋 Add a Doctor</h2>
-<button id="addDoctorClose" class="modal__close" type="button" aria-label="Close">&times;</button>
-</div>
+<input name="submitter_name" placeholder="Your Name *" required>
+<input name="submitter_address" placeholder="Your Address">
+<input name="submitter_phone" placeholder="Your Phone *" required>
 
-<form id="addDoctorForm" class="modal__body" novalidate>
-
-<fieldset class="form-fieldset">
-<legend class="form-legend">Doctor Information</legend>
-
-<label class="form-label" for="docName">Doctor Name <span class="required">*</span></label>
-<input id="docName" class="form-input" type="text" required maxlength="120" placeholder="e.g., Dr. Sushanta Roy">
-
-<label class="form-label" for="docSpecialty">Specialty <span class="required">*</span></label>
-<input id="docSpecialty" class="form-input" type="text" required maxlength="100" placeholder="e.g., Child Specialist, ENT">
-
-<label class="form-label" for="docDegree">Degree</label>
-<input id="docDegree" class="form-input" type="text" maxlength="150" placeholder="e.g., MBBS, MD">
-
-<label class="form-label" for="docChamber">Chamber Name <span class="required">*</span></label>
-<input id="docChamber" class="form-input" type="text" required maxlength="150" placeholder="e.g., Child Care Clinic">
-
-<label class="form-label" for="docAddress">Chamber Address</label>
-<input id="docAddress" class="form-input" type="text" maxlength="250" placeholder="Full street address">
-
-<label class="form-label" for="docArea">Area <span class="required">*</span></label>
-<input id="docArea" class="form-input" type="text" required maxlength="100" placeholder="e.g., Mini Bus Stand, New Town">
-
-<label class="form-label" for="docCity">City</label>
-<input id="docCity" class="form-input" type="text" value="Cooch Behar" maxlength="80" placeholder="Cooch Behar">
-
-<label class="form-label" for="docPhone">Phone <span class="required">*</span></label>
-<input id="docPhone" class="form-input" type="tel" required maxlength="15" pattern="[0-9+\-\s]{10,15}" placeholder="10-digit mobile number">
-
-<label class="form-label" for="docWhatsApp">WhatsApp</label>
-<input id="docWhatsApp" class="form-input" type="tel" maxlength="15" pattern="[0-9+\-\s]{10,15}" placeholder="WhatsApp number">
-
-<label class="form-label" for="docSession1">Session 1</label>
-<input id="docSession1" class="form-input" type="text" maxlength="80" placeholder="e.g., 10AM - 1PM">
-
-<label class="form-label" for="docSession2">Session 2</label>
-<input id="docSession2" class="form-input" type="text" maxlength="80" placeholder="e.g., 5PM - 8PM">
-
-<label class="form-label" for="docSession3">Session 3</label>
-<input id="docSession3" class="form-input" type="text" maxlength="80" placeholder="e.g., Sunday 10AM - 12PM">
-
-<label class="form-label" for="docTimingNote">Timing Notes</label>
-<input id="docTimingNote" class="form-input" type="text" maxlength="150" placeholder="e.g., Sunday closed">
-
-<label class="form-label" for="docFees">Consultation Fee</label>
-<input id="docFees" class="form-input" type="text" maxlength="50" placeholder="e.g., ₹500">
-
-</fieldset>
-
-<fieldset class="form-fieldset">
-
-<legend class="form-legend">Your Information</legend>
-
-<label class="form-label" for="submitterName">Your Name <span class="required">*</span></label>
-<input id="submitterName" class="form-input" type="text" required maxlength="120" placeholder="Your full name">
-
-<label class="form-label" for="submitterAddress">Your Address</label>
-<input id="submitterAddress" class="form-input" type="text" maxlength="250" placeholder="Your address">
-
-<label class="form-label" for="submitterPhone">Your Phone <span class="required">*</span></label>
-<input id="submitterPhone" class="form-input" type="tel" required maxlength="15" pattern="[0-9+\-\s]{10,15}" placeholder="Your contact number">
-
-</fieldset>
-
-<div class="form-actions">
-
-<button id="submitDoctorBtn" class="btn btn--primary btn--full" type="submit">
-Submit Doctor
-</button>
-
-<p class="form-disclaimer">
-By submitting, you confirm this information is accurate to the best of your knowledge.
-</p>
-
-</div>
+<button class="submitBtn" type="submit">Submit Doctor</button>
 
 </form>
-
-<div id="addDoctorSuccess" class="modal__success" hidden>
-<div class="success-icon" aria-hidden="true">✅</div>
-<h3>Thank You!</h3>
-<p>The doctor has been added to the directory and will appear shortly.</p>
-<button id="addDoctorDone" class="btn btn--primary" type="button">Done</button>
-</div>
-
 </div>
 </div>
 
-<div id="feedbackModal" class="modal" role="dialog" aria-modal="true" aria-label="Send feedback" hidden>
-
-<div class="modal__backdrop"></div>
-
-<div class="modal__content modal__content--centered">
-
-<div class="modal__header">
-<h2 class="modal__title">💬 Feedback</h2>
-<button id="feedbackClose" class="modal__close" type="button" aria-label="Close">&times;</button>
+<div id="feedbackModal" class="modal hidden">
+<div class="modalBox">
+<div class="modalHead">
+<h2>Feedback</h2>
+<button data-close class="iconBtn">✕</button>
 </div>
 
-<div class="modal__body">
-
-<label class="form-label" for="feedbackText">Your Feedback</label>
-
-<textarea
-id="feedbackText"
-class="form-textarea"
-rows="5"
-maxlength="2000"
-placeholder="Tell us what you think, report an error, or suggest improvements..."
-></textarea>
-
-<div class="feedback-actions">
-
-<label class="btn btn--outline btn--sm" for="feedbackImage" role="button">
-📷 Upload Image
-<input id="feedbackImage" class="visually-hidden" type="file" accept="image/*">
-</label>
-
-<button id="feedbackVoiceBtn" class="btn btn--outline btn--sm" type="button" aria-label="Record voice message">
-🎤 Record Voice
-</button>
-
-</div>
-
-<div id="voiceStatus" class="voice-status" hidden>
-<span class="voice-indicator"></span>
-<span>Recording...</span>
-<span id="voiceTimer">0:00</span>
-<button id="voiceStopBtn" class="btn btn--sm btn--danger" type="button">Stop</button>
-</div>
-
-<button id="feedbackSubmit" class="btn btn--primary btn--full" type="button">
-Submit Feedback
-</button>
-
-<div id="feedbackSuccess" class="feedback-success" hidden>
-✅ Feedback sent! Thank you.
-</div>
-
+<form id="feedbackForm" class="form">
+<textarea id="feedbackText" placeholder="Write feedback"></textarea>
+<input id="feedbackImage" type="file" accept="image/*">
+<button type="button" id="voiceBtn">🎤 Record Voice</button>
+<button class="submitBtn" type="submit">Submit Feedback</button>
+</form>
 </div>
 </div>
-</div>
-
-<div id="noticeModal" class="modal" role="dialog" aria-modal="true" aria-label="Notice" hidden>
-
-<div class="modal__backdrop"></div>
-
-<div class="modal__content modal__content--centered">
-
-<div class="modal__header">
-<h2 class="modal__title">📌 Notice</h2>
-<button id="noticeClose" class="modal__close" type="button" aria-label="Close">&times;</button>
-</div>
-
-<div id="noticeModalBody" class="modal__body"></div>
-
-</div>
-</div>
-
-<div id="detailModal" class="modal" role="dialog" aria-modal="true" aria-label="Doctor details" hidden>
-
-<div class="modal__backdrop"></div>
-
-<div class="modal__content modal__content--centered">
-
-<div class="modal__header">
-<h2 id="detailModalTitle" class="modal__title">Doctor Details</h2>
-<button id="detailClose" class="modal__close" type="button" aria-label="Close">&times;</button>
-</div>
-
-<div id="detailModalBody" class="modal__body"></div>
-
-</div>
-</div>
-
-<div
-id="shareRenderTarget"
-class="share-render-target"
-aria-hidden="true"
-style="position:absolute;left:-9999px;top:0;width:600px;"
-></div>
-
-<div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
 <script src="config.js"></script>
 <script src="utils.js"></script>
 <script src="data.js"></script>
-<script src="png-share.js"></script>
 <script src="app.js"></script>
-
-<script>
-if("serviceWorker" in navigator && window.location.hostname !== "localhost"){
-window.addEventListener("load",()=>{
-navigator.serviceWorker.register("/sw.js").catch(err=>{
-console.warn("SW registration failed:",err)
-})
-})
-}
-</script>
 
 </body>
 </html>
