@@ -1,6 +1,6 @@
 const CONFIG = {
   SHEET_CSV: "https://docs.google.com/spreadsheets/d/1R0iYUyB38m0dAhNhQfx5w2TVMAHIQ3Y1fWxvDlA-TWM/export?format=csv&gid=0",
-  GAS_URL: "Place_Holder",
+  GAS_URL: "https://script.google.com/macros/s/AKfycbyA3euucFac0J64OAi93b8CW8oWEopoACzPWJHmTb6R7frnxnxvr6V-AeivQ5zGPUUfag/exec",
   TG: {
     BOT: "8935806264:AAHVB9rcx0hsu5jVBuEUVpQqw5MYba7FxR0",
     CHAT: "7929275539"
