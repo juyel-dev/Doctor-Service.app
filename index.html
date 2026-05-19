@@ -1,120 +1,319 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cooch Behar Healthcare Directory</title>
-<meta name="theme-color" content="#2c7a7b">
-<meta name="description" content="Community-powered healthcare discovery platform for Cooch Behar">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+  <meta name="theme-color" content="#2c7a7b">
+  <meta name="description" content="Community-powered healthcare directory for Cooch Behar. Find doctors, specialists, and clinics near you.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CBH Directory">
+  <meta property="og:title" content="Cooch Behar Healthcare Directory">
+  <meta property="og:description" content="Community-powered healthcare directory for Cooch Behar.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="./icons/icon-512.png">
+  <title>Cooch Behar Healthcare Directory</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
 </head>
 <body>
 
-<div id="noticeBar" class="notice hidden">
-<div class="noticeText" id="noticeText"></div>
-<button id="closeNotice" class="iconBtn">✕</button>
+<!-- ANNOUNCEMENT BAR -->
+<div id="announce-bar" hidden>
+  <span id="announce-text"></span>
+  <button id="announce-close" aria-label="Dismiss announcement">✕</button>
 </div>
 
-<header class="header">
-<div>
-<h1>Cooch Behar Healthcare</h1>
-<p>Community-powered healthcare directory</p>
-</div>
-<button id="menuBtn" class="iconBtn">☰</button>
-</header>
+<!-- MENU OVERLAY -->
+<div id="menu-overlay" class="menu-overlay" aria-hidden="true"></div>
 
-<nav id="drawer" class="drawer">
-<a href="#">Privacy Policy</a>
-<a href="#">Terms</a>
-<a href="#">Transparency</a>
-<a href="#">Docs</a>
+<!-- SLIDE MENU -->
+<nav id="slide-menu" aria-label="Main navigation">
+  <div class="menu-head">
+    <strong>🏥 Cooch Behar Healthcare</strong>
+    <span>Community-powered directory</span>
+  </div>
+  <ul class="menu-list" role="list">
+    <li>
+      <a href="./index.html">
+        <span class="menu-icon">🏠</span>Home
+      </a>
+    </li>
+    <li>
+      <button id="menu-add-doctor" type="button">
+        <span class="menu-icon">➕</span>Add a Doctor
+      </button>
+    </li>
+    <li>
+      <button id="menu-feedback" type="button">
+        <span class="menu-icon">💬</span>Send Feedback
+      </button>
+    </li>
+    <li>
+      <a href="./privacy.html">
+        <span class="menu-icon">🔒</span>Privacy Policy
+      </a>
+    </li>
+    <li>
+      <a href="./terms.html">
+        <span class="menu-icon">📄</span>Terms of Use
+      </a>
+    </li>
+    <li>
+      <a href="./transparency.html">
+        <span class="menu-icon">📊</span>Transparency Report
+      </a>
+    </li>
+  </ul>
+  <button id="menu-close-btn" type="button" class="menu-close">✕ Close Menu</button>
 </nav>
 
-<main class="main">
+<!-- HEADER -->
+<header role="banner">
+  <div class="hdr-left">
+    <span class="hdr-title">🏥 Cooch Behar Healthcare</span>
+    <span class="hdr-sub">Community-powered healthcare directory</span>
+  </div>
+  <button id="menu-btn" class="menu-btn" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="slide-menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+</header>
 
-<section class="searchWrap">
-<input id="searchInput" type="search" placeholder="Doctor,specialty,area,phone...">
-<select id="areaFilter">
-<option value="">All Areas</option>
-</select>
-</section>
+<!-- MAIN -->
+<main role="main">
 
-<section id="specWrap" class="specWrap"></section>
+  <!-- SEARCH -->
+  <div class="search-wrap">
+    <span class="search-icon" aria-hidden="true">🔍</span>
+    <input
+      type="search"
+      id="search-input"
+      placeholder="ডাক্তার, স্পেশালিটি, এরিয়া, ফোন..."
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      aria-label="Search doctors by name, specialty, area or phone"
+    >
+    <button id="search-clear" type="button" aria-label="Clear search" hidden>✕</button>
+  </div>
 
-<section class="stats">
-<div>👥 Total Visitors</div>
-<strong id="visitorCount">0</strong>
-</section>
+  <!-- SPECIALTY PILLS -->
+  <div id="pills-wrap" class="pills-wrap" role="group" aria-label="Filter by specialty"></div>
 
-<section id="doctorList" class="list"></section>
+  <!-- AREA FILTER -->
+  <div class="area-wrap">
+    <select id="area-select" aria-label="Filter by area">
+      <option value="">📍 All Areas</option>
+    </select>
+  </div>
 
-<div id="emptyState" class="empty hidden">
-<p>No doctors found</p>
-</div>
+  <!-- STATS BAR -->
+  <div class="stats-bar" aria-live="polite" aria-atomic="true">
+    <span>👥 Visitors: <strong id="visitor-count">—</strong></span>
+    <span id="result-count"></span>
+  </div>
+
+  <!-- DOCTOR CARDS -->
+  <div id="cards-container" role="list" aria-label="Doctor listings" aria-live="polite" aria-atomic="false"></div>
 
 </main>
 
-<button id="addFab" class="fab">＋</button>
-<button id="feedbackFab" class="fab feedbackFab">💬</button>
+<!-- FOOTER -->
+<footer role="contentinfo">
+  <p>🏥 Cooch Behar Healthcare Directory</p>
+  <p>Data from community volunteers. Not medical advice.<br>
+  <a href="./privacy.html">Privacy</a> · <a href="./terms.html">Terms</a> · <a href="./transparency.html">Transparency</a></p>
+</footer>
 
-<div id="doctorModal" class="modal hidden">
-<div class="modalBox">
-<div class="modalHead">
-<h2>Add Doctor</h2>
-<button data-close class="iconBtn">✕</button>
+<!-- FAB GROUP -->
+<div class="fab-group" aria-label="Quick actions">
+  <div class="fab-row">
+    <span class="fab-lbl" aria-hidden="true">Send Feedback</span>
+    <button id="fab-feedback" class="fab fab-secondary" type="button" aria-label="Send feedback">💬</button>
+  </div>
+  <div class="fab-row">
+    <span class="fab-lbl" aria-hidden="true">Add a Doctor</span>
+    <button id="fab-add" class="fab fab-primary" type="button" aria-label="Add a doctor">➕</button>
+  </div>
 </div>
 
-<form id="doctorForm" class="form">
+<!-- ═══════════════════════════════════════ -->
+<!-- ADD DOCTOR MODAL                       -->
+<!-- ═══════════════════════════════════════ -->
+<div id="modal-add-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
+  <div class="modal">
+    <div class="modal-head">
+      <span id="modal-add-title" class="modal-title">➕ Add a Doctor</span>
+      <button id="modal-add-close" class="modal-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="doctor-form" novalidate autocomplete="off">
 
-<input name="name" placeholder="Doctor Name *" required>
-<input name="specialty" placeholder="Specialty *" required>
-<input name="degree" placeholder="Degree">
-<input name="chamber_name" placeholder="Chamber Name *" required>
-<input name="chamber_address" placeholder="Chamber Address">
-<input name="area" placeholder="Area *" required>
-<input name="city" placeholder="City">
-<input name="phone" placeholder="Phone *" required>
-<input name="whatsapp" placeholder="WhatsApp">
-<input name="session_1" placeholder="Session 1">
-<input name="session_2" placeholder="Session 2">
-<input name="session_3" placeholder="Session 3">
-<input name="time_description" placeholder="Timing Notes">
-<input name="fees" placeholder="Fees">
+        <div class="form-group">
+          <label class="form-label" for="doc_name">Doctor Name <span class="req" aria-label="required">*</span></label>
+          <input type="text" id="doc_name" name="doc_name" class="form-input" placeholder="Dr. Full Name" autocomplete="off">
+        </div>
 
-<div class="divider">Your Info</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="doc_spec">Specialty <span class="req">*</span></label>
+            <input type="text" id="doc_spec" name="doc_spec" class="form-input" placeholder="e.g. ENT, Cardiology">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="doc_deg">Degree</label>
+            <input type="text" id="doc_deg" name="doc_deg" class="form-input" placeholder="e.g. MBBS, MD">
+          </div>
+        </div>
 
-<input name="submitter_name" placeholder="Your Name *" required>
-<input name="submitter_address" placeholder="Your Address">
-<input name="submitter_phone" placeholder="Your Phone *" required>
+        <div class="form-group">
+          <label class="form-label" for="doc_chamber">Chamber Name <span class="req">*</span></label>
+          <input type="text" id="doc_chamber" name="doc_chamber" class="form-input" placeholder="Clinic / Chamber name">
+        </div>
 
-<button class="submitBtn" type="submit">Submit Doctor</button>
+        <div class="form-group">
+          <label class="form-label" for="doc_addr">Chamber Address</label>
+          <input type="text" id="doc_addr" name="doc_addr" class="form-input" placeholder="Street / landmark">
+        </div>
 
-</form>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="doc_area">Area <span class="req">*</span></label>
+            <input type="text" id="doc_area" name="doc_area" class="form-input" placeholder="Locality / area">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="doc_city">City</label>
+            <input type="text" id="doc_city" name="doc_city" class="form-input" value="Cooch Behar">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="doc_phone">Phone <span class="req">*</span></label>
+            <input type="tel" id="doc_phone" name="doc_phone" class="form-input" placeholder="10-digit number">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="doc_wa">WhatsApp</label>
+            <input type="tel" id="doc_wa" name="doc_wa" class="form-input" placeholder="If different">
+          </div>
+        </div>
+
+        <div class="form-divider">Visiting Sessions</div>
+
+        <div class="form-group">
+          <label class="form-label" for="doc_s1">Session 1</label>
+          <input type="text" id="doc_s1" name="doc_s1" class="form-input" placeholder="e.g. 10AM – 1PM">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="doc_s2">Session 2</label>
+          <input type="text" id="doc_s2" name="doc_s2" class="form-input" placeholder="e.g. 5PM – 8PM">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="doc_s3">Session 3</label>
+          <input type="text" id="doc_s3" name="doc_s3" class="form-input" placeholder="e.g. Emergency only">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="doc_note">Timing Notes</label>
+          <input type="text" id="doc_note" name="doc_note" class="form-input" placeholder="e.g. Closed Sunday, Token from 9AM">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="doc_fees">Consultation Fees</label>
+          <input type="text" id="doc_fees" name="doc_fees" class="form-input" placeholder="e.g. ₹300 – ₹500">
+        </div>
+
+        <div class="form-divider">Your Information</div>
+
+        <div class="form-group">
+          <label class="form-label" for="sub_name">Your Name <span class="req">*</span></label>
+          <input type="text" id="sub_name" name="sub_name" class="form-input" placeholder="Your full name">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="sub_addr">Your Area</label>
+            <input type="text" id="sub_addr" name="sub_addr" class="form-input" placeholder="Your locality">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sub_phone">Your Phone <span class="req">*</span></label>
+            <input type="tel" id="sub_phone" name="sub_phone" class="form-input" placeholder="For verification">
+          </div>
+        </div>
+
+        <p class="form-hint">📌 Submitted doctors are reviewed before listing. Your info is used for verification only.</p>
+
+        <button type="submit" class="btn-primary">Submit Doctor</button>
+      </form>
+    </div>
+  </div>
 </div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- FEEDBACK MODAL                         -->
+<!-- ═══════════════════════════════════════ -->
+<div id="modal-feedback-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-feedback-title">
+  <div class="modal">
+    <div class="modal-head">
+      <span id="modal-feedback-title" class="modal-title">💬 Send Feedback</span>
+      <button id="modal-feedback-close" class="modal-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="feedback-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="feedback-text">Your Message</label>
+          <textarea
+            id="feedback-text"
+            name="feedback_text"
+            class="form-textarea"
+            placeholder="Report a wrong number, suggest a doctor, share your experience, or ask a question…"
+          ></textarea>
+        </div>
+
+        <label class="upload-label" for="img-input">
+          📷 Attach an Image (optional)
+          <input type="file" id="img-input" name="img_input" accept="image/*" style="display:none" aria-label="Upload image">
+        </label>
+        <img id="img-preview" class="img-preview" alt="Image preview">
+
+        <button type="button" id="voice-btn" class="voice-btn">🎤 Record Voice (max 15s)</button>
+
+        <p class="form-hint">Feedback goes directly to our team via Telegram. We read every message. 🙏</p>
+
+        <button type="submit" class="btn-primary">Submit Feedback</button>
+      </form>
+    </div>
+  </div>
 </div>
 
-<div id="feedbackModal" class="modal hidden">
-<div class="modalBox">
-<div class="modalHead">
-<h2>Feedback</h2>
-<button data-close class="iconBtn">✕</button>
+<!-- ═══════════════════════════════════════ -->
+<!-- NOTICE MODAL                           -->
+<!-- ═══════════════════════════════════════ -->
+<div id="modal-notice-overlay" class="modal-overlay center" role="dialog" aria-modal="true" aria-labelledby="modal-notice-title">
+  <div class="modal">
+    <div class="modal-head">
+      <span id="modal-notice-title" class="modal-title">📌 Notice</span>
+      <button id="modal-notice-close" class="modal-close" type="button" aria-label="Close notice">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="notice-content" class="notice-body"></div>
+      <button id="notice-dismiss" class="btn-primary" type="button">Got it 👍</button>
+    </div>
+  </div>
 </div>
 
-<form id="feedbackForm" class="form">
-<textarea id="feedbackText" placeholder="Write feedback"></textarea>
-<input id="feedbackImage" type="file" accept="image/*">
-<button type="button" id="voiceBtn">🎤 Record Voice</button>
-<button class="submitBtn" type="submit">Submit Feedback</button>
-</form>
-</div>
-</div>
-
-<script src="config.js"></script>
-<script src="utils.js"></script>
-<script src="data.js"></script>
-<script src="app.js"></script>
+<!-- SCRIPTS — order matters -->
+<script src="./config.js"></script>
+<script src="./utils.js"></script>
+<script src="./data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" defer></script>
+<script src="./png-share.js"></script>
+<script src="./app.js"></script>
 
 </body>
 </html>
