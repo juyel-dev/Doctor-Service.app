@@ -1,21 +1,41 @@
 {
-    "name": "Cooch Behar Healthcare Directory",
-    "short_name": "CBH Directory",
-    "description": "Community-powered healthcare discovery platform for Cooch Behar. Find verified doctors, specialists, and clinics.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#f7fafc",
-    "theme_color": "#2c7a7b",
-    "orientation": "portrait-primary",
-    "icons": [
-        {
-            "src": "/icon.svg",
-            "sizes": "any",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
-        }
-    ],
-    "lang": "en-IN",
-    "categories": ["health", "medical", "directory"],
-    "iarc_rating_id": "e-safe-for-everyone"
+  "name": "Cooch Behar Healthcare Directory",
+  "short_name": "CBH Directory",
+  "description": "Community-powered healthcare directory for Cooch Behar. Find doctors, specialists, and clinics near you.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7fafc",
+  "theme_color": "#2c7a7b",
+  "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "categories": ["health", "medical", "directory"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/screenshot.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Doctor directory home screen"
+    }
+  ]
 }
