@@ -1,108 +1,69 @@
-const $=s=>document.querySelector(s)
-const $$=s=>document.querySelectorAll(s)
+const Utils = {
+  debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  },
 
-const debounce=(fn,d=300)=>{
-let t
-return(...a)=>{
-clearTimeout(t)
-t=setTimeout(()=>fn(...a),d)
-}
-}
+  sanitize(s) {
+    return String(s || "").replace(/[<>"'&]/g, c =>
+      ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "&": "&amp;" }[c])
+    );
+  },
 
-const esc=s=>(s||"").replace(/[&<>"']/g,m=>({
-"&":"&amp;",
-"<":"&lt;",
-">":"&gt;",
-'"':"&quot;",
-"'":"&#039;"
-}[m]))
+  autoLink(s) {
+    return Utils.sanitize(s).replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+  },
 
-const slug=s=>(s||"").toLowerCase().trim()
+  fmtDate(s) {
+    if (!s) return "";
+    try {
+      return new Date(s).toLocaleDateString("en-IN", {
+        day: "numeric", month: "short", year: "numeric"
+      });
+    } catch { return s; }
+  },
 
-const normalize=s=>slug(s).replace(/\s+/g," ")
+  fmtNum(n) {
+    const num = Number(n);
+    return isNaN(num) ? "0" : num.toLocaleString("en-IN");
+  },
 
-const parseCSV=t=>{
-const r=[],l=t.trim().split("\n")
-const h=l.shift().split(",").map(v=>v.trim())
-for(const line of l){
-const a=[]
-let c="",q=!1
-for(let i=0;i<line.length;i++){
-const ch=line[i]
-if(ch=='"'){
-if(q&&line[i+1]=='"'){c+='"';i++}
-else q=!q
-}else if(ch==","&&!q){
-a.push(c.trim())
-c=""
-}else c+=ch
-}
-a.push(c.trim())
-const o={}
-h.forEach((k,i)=>o[k]=a[i]||"")
-r.push(o)
-}
-return r
-}
+  getSession() {
+    const k = CONFIG.APP.SESSION_KEY;
+    let id = sessionStorage.getItem(k);
+    if (!id) {
+      id = "s_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      sessionStorage.setItem(k, id);
+    }
+    return id;
+  },
 
-const fmtPhone=p=>(p||"").replace(/\D/g,"")
+  qs: (sel, root = document) => root.querySelector(sel),
+  qsa: (sel, root = document) => [...root.querySelectorAll(sel)],
+  on: (el, ev, fn) => el?.addEventListener(ev, fn),
 
-const waLink=p=>`https://wa.me/91${fmtPhone(p)}`
-const telLink=p=>`tel:${fmtPhone(p)}`
+  show(el) { el && (el.hidden = false); },
+  hide(el) { el && (el.hidden = true); },
 
-const uid=()=>Math.random().toString(36).slice(2,10)
+  toast(msg, type = "info") {
+    Utils.qs(".toast")?.remove();
+    const t = document.createElement("div");
+    t.className = `toast toast--${type}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => t.classList.add("toast--show"));
+    });
+    setTimeout(() => {
+      t.classList.remove("toast--show");
+      setTimeout(() => t.remove(), 320);
+    }, 3200);
+  },
 
-const toast=m=>{
-const t=document.createElement("div")
-t.className="toast"
-t.textContent=m
-document.body.appendChild(t)
-setTimeout(()=>t.classList.add("show"),50)
-setTimeout(()=>{
-t.classList.remove("show")
-setTimeout(()=>t.remove(),300)
-},2200)
-}
-
-const save=k,v=>localStorage.setItem(k,JSON.stringify(v))
-const load=(k,d=null)=>{
-try{
-return JSON.parse(localStorage.getItem(k))??d
-}catch{
-return d
-}
-}
-
-const fuzzy=(q,s)=>{
-q=normalize(q)
-s=normalize(s)
-if(!q)return 1
-if(s.includes(q))return 100
-const qt=q.split(" ")
-let sc=0
-qt.forEach(t=>{
-if(s.includes(t))sc+=10
-})
-return sc
-}
-
-const sharePNG=async(el,name)=>{
-if(!window.html2canvas)return toast("Share unavailable")
-const c=await html2canvas(el,{scale:2,useCORS:1})
-c.toBlob(async b=>{
-const f=new File([b],`${name}.png`,{type:"image/png"})
-if(navigator.canShare?.({files:[f]})){
-await navigator.share({files:[f],title:name})
-}else{
-const a=document.createElement("a")
-a.href=URL.createObjectURL(b)
-a.download=`${name}.png`
-a.click()
-}
-})
-}
-
-const autoLink=t=>(t||"").replace(
-/(https?:\/\/[^\s]+)/g,
-u=>`<a href="${u}" target="_blank">${u}</a>`
-)
+  escapePhone(phone) {
+    return String(phone || "").replace(/\D/g, "");
+  }
+};
