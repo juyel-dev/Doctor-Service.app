@@ -1,31 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cooch Behar Healthcare Directory icon">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#319795"/>
-      <stop offset="100%" stop-color="#2c5282"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2c7a7b"/>
+      <stop offset="100%" style="stop-color:#234e52"/>
     </linearGradient>
-
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.25"/>
-    </filter>
+    <linearGradient id="cross" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#e6fffa;stop-opacity:1"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background Circle -->
-  <circle cx="60" cy="60" r="54" fill="url(#bg)" filter="url(#shadow)"/>
+  <!-- Background circle (maskable safe zone) -->
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
 
-  <!-- Inner Glow Ring -->
-  <circle cx="60" cy="60" r="48"
-          fill="none"
-          stroke="rgba(255,255,255,0.25)"
-          stroke-width="2"/>
+  <!-- Subtle inner glow ring -->
+  <rect width="512" height="512" rx="114" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16"/>
 
-  <!-- Hospital Emoji -->
-  <text x="60"
-        y="74"
-        font-size="54"
-        text-anchor="middle"
-        fill="white"
-        font-family="Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif">
-    🏥
-  </text>
+  <!-- Hospital building base -->
+  <rect x="156" y="270" width="200" height="148" rx="6" fill="url(#cross)" opacity="0.15"/>
+
+  <!-- Medical cross -->
+  <rect x="212" y="150" width="88" height="220" rx="16" fill="url(#cross)"/>
+  <rect x="146" y="216" width="220" height="88" rx="16" fill="url(#cross)"/>
+
+  <!-- Heart cutout inside cross -->
+  <path d="M256 290 c0,0 -38,-28 -38,-52 c0,-18 14,-30 28,-24 c5,2 8,6 10,10 c2,-4 5,-8 10,-10 c14,-6 28,6 28,24 c0,24 -38,52 -38,52 z" fill="#2c7a7b" opacity="0.5"/>
+
+  <!-- Small + badge top right -->
+  <circle cx="390" cy="122" r="46" fill="#38a169"/>
+  <rect x="378" y="104" width="24" height="36" rx="5" fill="white"/>
+  <rect x="372" y="110" width="36" height="24" rx="5" fill="white"/>
 </svg>
