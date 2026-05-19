@@ -1,159 +1,139 @@
-const DataService=(()=>{
-let doctors=[]
-let visitors=0
+const Data = {
+  doctors: [],
+  notice: "",
+  visitors: 0,
 
-const fetchCSV=async()=>{
-const r=await fetch(CONFIG.CSV_URL+"#"+Date.now())
-if(!r.ok)throw new Error("CSV fetch failed")
-return parseCSV(await r.text())
-}
+  async loadAll() {
+    await Promise.all([Data._loadDoctors(), Data._loadMeta()]);
+  },
 
-const mapDoctor=d=>{
-const searchable=[
-d.name,
-d.specialty,
-d.degree,
-d.chamber_name,
-d.chamber_address,
-d.area,
-d.city,
-d.phone
-].join(" ")
-return{
-...d,
-searchable:normalize(searchable)
-}
-}
+  async _loadDoctors() {
+    try {
+      const res = await fetch(CONFIG.SHEET_CSV + "&t=" + Date.now());
+      const csv = await res.text();
+      const rows = Data._parseCSV(csv);
+      Data.doctors = rows.slice(1)
+        .filter(r => r[CONFIG.C.NAME]?.trim())
+        .map(Data._mapRow);
+    } catch (e) {
+      console.error("CSV load error:", e);
+      Data.doctors = [];
+    }
+  },
 
-const loadDoctors=async()=>{
-const rows=await fetchCSV()
-doctors=rows.map(mapDoctor)
-return doctors
-}
+  _parseCSV(text) {
+    const rows = [];
+    let row = [], cur = "", inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        if (inQ && text[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        row.push(cur.trim()); cur = "";
+      } else if ((c === '\n' || c === '\r') && !inQ) {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur.trim());
+        if (row.some(v => v)) rows.push(row);
+        row = []; cur = "";
+      } else {
+        cur += c;
+      }
+    }
+    if (cur || row.length) { row.push(cur.trim()); if (row.some(v => v)) rows.push(row); }
+    return rows;
+  },
 
-const getDoctors=()=>doctors
+  _mapRow(r) {
+    const g = i => (r[i] || "").trim();
+    const C = CONFIG.C;
+    const d = {
+      id: g(C.ID), name: g(C.NAME), spec: g(C.SPEC),
+      deg: g(C.DEG), chamber: g(C.CHAMBER), addr: g(C.ADDR),
+      area: g(C.AREA), city: g(C.CITY), phone: g(C.PHONE),
+      wa: g(C.WA), s1: g(C.S1), s2: g(C.S2),
+      s3: g(C.S3), note: g(C.NOTE), fees: g(C.FEES),
+      verif: g(C.VERIF), at: g(C.AT)
+    };
+    d._search = [
+      d.name, d.spec, d.deg, d.chamber,
+      d.addr, d.area, d.city, d.phone
+    ].join(" ").toLowerCase();
+    return d;
+  },
 
-const getAreas=()=>[
-...new Set(doctors.map(v=>v.area).filter(Boolean))
-].sort()
+  async _loadMeta() {
+    if (CONFIG.GAS_URL === "Place_Holder") return;
+    try {
+      const res = await fetch(CONFIG.GAS_URL + "?action=getStats&t=" + Date.now());
+      const json = await res.json();
+      Data.notice = json.notice || "";
+      Data.visitors = Number(json.visitors) || 0;
+    } catch {}
+  },
 
-const getSpecs=()=>[
-...new Set(doctors.map(v=>v.specialty).filter(Boolean))
-].sort()
+  getSpecialties() {
+    const seen = new Set();
+    return Data.doctors
+      .map(d => d.spec)
+      .filter(s => s && !seen.has(s) && seen.add(s))
+      .sort();
+  },
 
-const searchDoctors=(q="",spec="",area="")=>{
-const res=doctors.filter(d=>{
-const mq=!q||fuzzy(q,d.searchable)>0
-const ms=!spec||d.specialty===spec
-const ma=!area||d.area===area
-return mq&&ms&&ma
-})
-if(q){
-res.sort((a,b)=>
-fuzzy(q,b.searchable)-fuzzy(q,a.searchable)
-)
-}
-return res
-}
+  getAreas() {
+    const seen = new Set();
+    return Data.doctors
+      .map(d => d.area)
+      .filter(a => a && !seen.has(a) && seen.add(a))
+      .sort();
+  },
 
-const submitDoctor=async(data)=>{
-const r=await fetch(CONFIG.GAS_URL,{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-action:"submitDoctor",
-data
-})
-})
-return r.json()
-}
+  search(query, spec, area) {
+    const q = query.toLowerCase().trim();
+    const tokens = q.split(/\s+/).filter(Boolean);
 
-const updateVisitor=async()=>{
-try{
-await fetch(CONFIG.GAS_URL,{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-action:"pageview",
-sid:uid()
-})
-})
-}catch{}
-}
+    let result = Data.doctors.filter(d => {
+      if (spec && d.spec !== spec) return false;
+      if (area && d.area !== area) return false;
+      if (!tokens.length) return true;
+      return tokens.every(t => d._search.includes(t));
+    });
 
-const getVisitors=async()=>{
-try{
-const r=await fetch(CONFIG.GAS_URL+"?action=getStats")
-const j=await r.json()
-visitors=j.total||0
-return visitors
-}catch{
-return visitors
-}
-}
+    if (q) {
+      result = result.sort((a, b) => {
+        const aEx = a._search.startsWith(q) ? 2 : a._search.includes(q) ? 1 : 0;
+        const bEx = b._search.startsWith(q) ? 2 : b._search.includes(q) ? 1 : 0;
+        return bEx - aEx;
+      });
+    }
 
-const getNotice=()=>{
-const row=doctors[0]||{}
-return row.notice||""
-}
+    return result;
+  },
 
-const tgMsg=async(msg)=>{
-const u=`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendMessage`
-return fetch(u,{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-chat_id:CONFIG.TG_CHAT,
-text:msg
-})
-})
-}
+  async submitDoctor(payload) {
+    if (CONFIG.GAS_URL === "Place_Holder") {
+      throw new Error("GAS URL not configured");
+    }
+    const res = await fetch(CONFIG.GAS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "addDoctor", ...payload })
+    });
+    return res.json();
+  },
 
-const tgPhoto=async(file,caption="Feedback Image")=>{
-const fd=new FormData()
-fd.append("chat_id",CONFIG.TG_CHAT)
-fd.append("caption",caption)
-fd.append("photo",file)
-return fetch(
-`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendPhoto`,
-{
-method:"POST",
-body:fd
-}
-)
-}
-
-const tgVoice=async(blob)=>{
-const fd=new FormData()
-fd.append("chat_id",CONFIG.TG_CHAT)
-fd.append("voice",blob,"voice.webm")
-return fetch(
-`https://api.telegram.org/bot${CONFIG.TG_BOT}/sendVoice`,
-{
-method:"POST",
-body:fd
-}
-)
-}
-
-return{
-loadDoctors,
-getDoctors,
-getAreas,
-getSpecs,
-searchDoctors,
-submitDoctor,
-updateVisitor,
-getVisitors,
-getNotice,
-tgMsg,
-tgPhoto,
-tgVoice
-}
-})()
+  async trackVisit() {
+    if (CONFIG.GAS_URL === "Place_Holder") return null;
+    try {
+      await fetch(CONFIG.GAS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pageview", sid: Utils.getSession() })
+      });
+      const res = await fetch(CONFIG.GAS_URL + "?action=getStats&t=" + Date.now());
+      const json = await res.json();
+      Data.visitors = Number(json.visitors) || Data.visitors;
+      return Data.visitors;
+    } catch { return null; }
+  }
+};
